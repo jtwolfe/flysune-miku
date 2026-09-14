@@ -1,0 +1,892 @@
+{
+  "random": {
+    "cat": {
+      "word": "cat",
+      "predicted": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/cat.wav"
+    },
+    "bat": {
+      "word": "bat",
+      "predicted": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/bat.wav"
+    },
+    "dog": {
+      "word": "dog",
+      "predicted": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "reference": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/dog.wav"
+    },
+    "go": {
+      "word": "go",
+      "predicted": [
+        "G",
+        "OW"
+      ],
+      "reference": [
+        "G",
+        "OW"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/go.wav"
+    },
+    "no": {
+      "word": "no",
+      "predicted": [
+        "N",
+        "OW"
+      ],
+      "reference": [
+        "N",
+        "OW"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/no.wav"
+    },
+    "hi": {
+      "word": "hi",
+      "predicted": [
+        "HH",
+        "AY"
+      ],
+      "reference": [
+        "HH",
+        "AY"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/hi.wav"
+    },
+    "bye": {
+      "word": "bye",
+      "predicted": [
+        "B",
+        "P"
+      ],
+      "reference": [
+        "B",
+        "AY"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/bye.wav"
+    },
+    "yes": {
+      "word": "yes",
+      "predicted": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "reference": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/yes.wav"
+    },
+    "me": {
+      "word": "me",
+      "predicted": [
+        "M",
+        "IY"
+      ],
+      "reference": [
+        "M",
+        "IY"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/me.wav"
+    },
+    "you": {
+      "word": "you",
+      "predicted": [
+        "Y",
+        "UW"
+      ],
+      "reference": [
+        "Y",
+        "UW"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/random/you.wav"
+    },
+    "mushroom": {
+      "word": "mushroom",
+      "predicted": [
+        "M",
+        "M",
+        "UW",
+        "R",
+        "UW",
+        "M"
+      ],
+      "reference": [
+        "M",
+        "AH",
+        "SH",
+        "R",
+        "UW",
+        "M"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/mushroom.wav"
+    },
+    "connectome": {
+      "word": "connectome",
+      "predicted": [
+        "K",
+        "EH",
+        "N",
+        "ER",
+        "K",
+        "T",
+        "EH",
+        "M"
+      ],
+      "reference": [
+        "K",
+        "AA",
+        "N",
+        "AH",
+        "K",
+        "T",
+        "OW",
+        "M"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/connectome.wav"
+    },
+    "chaos": {
+      "word": "chaos",
+      "predicted": [
+        "K",
+        "EY",
+        "OW",
+        "Z"
+      ],
+      "reference": [
+        "K",
+        "EY",
+        "AA",
+        "S"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/chaos.wav"
+    },
+    "hatsune": {
+      "word": "hatsune",
+      "predicted": [
+        "HH",
+        "AE",
+        "T",
+        "AH",
+        "N",
+        "IY"
+      ],
+      "reference": [
+        "HH",
+        "AE",
+        "T",
+        "S",
+        "UW",
+        "N"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/hatsune.wav"
+    },
+    "australia": {
+      "word": "australia",
+      "predicted": [
+        "AO",
+        "AO",
+        "S",
+        "T",
+        "AA",
+        "L",
+        "D",
+        "AH"
+      ],
+      "reference": [
+        "AO",
+        "S",
+        "T",
+        "R",
+        "EY",
+        "L",
+        "Y",
+        "AH"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/australia.wav"
+    },
+    "neural": {
+      "word": "neural",
+      "predicted": [
+        "N",
+        "EH",
+        "UH",
+        "AA",
+        "L"
+      ],
+      "reference": [
+        "N",
+        "UH",
+        "R",
+        "AH",
+        "L"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/neural.wav"
+    },
+    "phoneme": {
+      "word": "phoneme",
+      "predicted": [
+        "F",
+        "OW",
+        "IH",
+        "IH",
+        "M"
+      ],
+      "reference": [
+        "F",
+        "OW",
+        "N",
+        "IY",
+        "M"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/phoneme.wav"
+    },
+    "cursed": {
+      "word": "cursed",
+      "predicted": [
+        "K",
+        "ER",
+        "S",
+        "D"
+      ],
+      "reference": [
+        "K",
+        "ER",
+        "S",
+        "T"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/cursed.wav"
+    },
+    "flywire": {
+      "word": "flywire",
+      "predicted": [
+        "F",
+        "L",
+        "K",
+        "AH",
+        "AY",
+        "ER"
+      ],
+      "reference": [
+        "F",
+        "L",
+        "AY",
+        "W",
+        "AY",
+        "R"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/flywire.wav"
+    },
+    "kenyon": {
+      "word": "kenyon",
+      "predicted": [
+        "K",
+        "EH",
+        "N",
+        "AH",
+        "UW",
+        "N"
+      ],
+      "reference": [
+        "K",
+        "EH",
+        "N",
+        "Y",
+        "AH",
+        "N"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/random/kenyon.wav"
+    }
+  },
+  "hemibrain": {
+    "cat": {
+      "word": "cat",
+      "predicted": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/cat.wav"
+    },
+    "bat": {
+      "word": "bat",
+      "predicted": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/bat.wav"
+    },
+    "dog": {
+      "word": "dog",
+      "predicted": [
+        "D",
+        "OW",
+        "G"
+      ],
+      "reference": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/dog.wav"
+    },
+    "go": {
+      "word": "go",
+      "predicted": [
+        "G",
+        "OW"
+      ],
+      "reference": [
+        "G",
+        "OW"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/go.wav"
+    },
+    "no": {
+      "word": "no",
+      "predicted": [
+        "N",
+        "OW"
+      ],
+      "reference": [
+        "N",
+        "OW"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/no.wav"
+    },
+    "hi": {
+      "word": "hi",
+      "predicted": [
+        "HH",
+        "AY"
+      ],
+      "reference": [
+        "HH",
+        "AY"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/hi.wav"
+    },
+    "bye": {
+      "word": "bye",
+      "predicted": [
+        "B",
+        "AY"
+      ],
+      "reference": [
+        "B",
+        "AY"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/bye.wav"
+    },
+    "yes": {
+      "word": "yes",
+      "predicted": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "reference": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/yes.wav"
+    },
+    "me": {
+      "word": "me",
+      "predicted": [
+        "M",
+        "IY"
+      ],
+      "reference": [
+        "M",
+        "IY"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/me.wav"
+    },
+    "you": {
+      "word": "you",
+      "predicted": [
+        "Y",
+        "UW"
+      ],
+      "reference": [
+        "Y",
+        "UW"
+      ],
+      "match": true,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/you.wav"
+    },
+    "mushroom": {
+      "word": "mushroom",
+      "predicted": [
+        "M",
+        "SH",
+        "AA",
+        "M",
+        "UW",
+        "M"
+      ],
+      "reference": [
+        "M",
+        "AH",
+        "SH",
+        "R",
+        "UW",
+        "M"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/mushroom.wav"
+    },
+    "connectome": {
+      "word": "connectome",
+      "predicted": [
+        "K",
+        "AA",
+        "N",
+        "EH",
+        "K",
+        "T",
+        "AY",
+        "AY"
+      ],
+      "reference": [
+        "K",
+        "AA",
+        "N",
+        "AH",
+        "K",
+        "T",
+        "OW",
+        "M"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/connectome.wav"
+    },
+    "chaos": {
+      "word": "chaos",
+      "predicted": [
+        "CH",
+        "R",
+        "OW",
+        "Z"
+      ],
+      "reference": [
+        "K",
+        "EY",
+        "AA",
+        "S"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/chaos.wav"
+    },
+    "hatsune": {
+      "word": "hatsune",
+      "predicted": [
+        "HH",
+        "AE",
+        "T",
+        "UW",
+        "N",
+        "N"
+      ],
+      "reference": [
+        "HH",
+        "AE",
+        "T",
+        "S",
+        "UW",
+        "N"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/hatsune.wav"
+    },
+    "australia": {
+      "word": "australia",
+      "predicted": [
+        "Z",
+        "N",
+        "S",
+        "T",
+        "AA",
+        "L",
+        "AH",
+        "AH"
+      ],
+      "reference": [
+        "AO",
+        "S",
+        "T",
+        "R",
+        "EY",
+        "L",
+        "Y",
+        "AH"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/australia.wav"
+    },
+    "neural": {
+      "word": "neural",
+      "predicted": [
+        "N",
+        "N",
+        "ER",
+        "AH",
+        "L"
+      ],
+      "reference": [
+        "N",
+        "UH",
+        "R",
+        "AH",
+        "L"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/neural.wav"
+    },
+    "phoneme": {
+      "word": "phoneme",
+      "predicted": [
+        "P",
+        "AH",
+        "M",
+        "N",
+        "AY"
+      ],
+      "reference": [
+        "F",
+        "OW",
+        "N",
+        "IY",
+        "M"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/phoneme.wav"
+    },
+    "cursed": {
+      "word": "cursed",
+      "predicted": [
+        "K",
+        "R",
+        "S",
+        "T"
+      ],
+      "reference": [
+        "K",
+        "ER",
+        "S",
+        "T"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/cursed.wav"
+    },
+    "flywire": {
+      "word": "flywire",
+      "predicted": [
+        "F",
+        "L",
+        "AY",
+        "AY",
+        "AY",
+        "DH"
+      ],
+      "reference": [
+        "F",
+        "L",
+        "AY",
+        "W",
+        "AY",
+        "R"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/flywire.wav"
+    },
+    "kenyon": {
+      "word": "kenyon",
+      "predicted": [
+        "K",
+        "EH",
+        "N",
+        "IY",
+        "G",
+        "N"
+      ],
+      "reference": [
+        "K",
+        "EH",
+        "N",
+        "Y",
+        "AH",
+        "N"
+      ],
+      "match": false,
+      "path": "artifacts/eval/more_fly/proofs/hemibrain/kenyon.wav"
+    }
+  },
+  "sentences": {
+    "hi_me": {
+      "words": [
+        "hi",
+        "me"
+      ],
+      "predicted": [
+        "HH",
+        "AY",
+        "M",
+        "IY"
+      ],
+      "reference": [
+        "HH",
+        "AY",
+        "M",
+        "IY"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/hi_me.wav"
+    },
+    "go_fly_miku": {
+      "words": [
+        "go",
+        "fly",
+        "miku"
+      ],
+      "predicted": [
+        "G",
+        "OW",
+        "F",
+        "L",
+        "IY",
+        "M",
+        "IH",
+        "K",
+        "UW"
+      ],
+      "reference": [
+        "G",
+        "OW",
+        "F",
+        "L",
+        "AY",
+        "M",
+        "IH",
+        "K",
+        "UW"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/go_fly_miku.wav"
+    },
+    "hello_world": {
+      "words": [
+        "hello",
+        "world"
+      ],
+      "predicted": [
+        "HH",
+        "IY",
+        "L",
+        "OW",
+        "W",
+        "AO",
+        "L",
+        "D"
+      ],
+      "reference": [
+        "HH",
+        "AH",
+        "L",
+        "OW",
+        "W",
+        "ER",
+        "L",
+        "D"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/hello_world.wav"
+    },
+    "yes_I_love_you": {
+      "words": [
+        "yes",
+        "I",
+        "love",
+        "you"
+      ],
+      "predicted": [
+        "Y",
+        "EH",
+        "S",
+        "IH",
+        "L",
+        "AO",
+        "IY",
+        "Y",
+        "UW"
+      ],
+      "reference": [
+        "Y",
+        "EH",
+        "S",
+        "AY",
+        "L",
+        "AH",
+        "V",
+        "Y",
+        "UW"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/yes_I_love_you.wav"
+    },
+    "open_the_brain": {
+      "words": [
+        "open",
+        "the",
+        "brain"
+      ],
+      "predicted": [
+        "OW",
+        "P",
+        "EH",
+        "N",
+        "DH",
+        "OW",
+        "B",
+        "R",
+        "EY",
+        "N"
+      ],
+      "reference": [
+        "OW",
+        "P",
+        "AH",
+        "N",
+        "DH",
+        "AH",
+        "B",
+        "R",
+        "EY",
+        "N"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/open_the_brain.wav"
+    },
+    "see_you_bye": {
+      "words": [
+        "see",
+        "you",
+        "bye"
+      ],
+      "predicted": [
+        "JH",
+        "IY",
+        "Y",
+        "UW",
+        "B",
+        "P"
+      ],
+      "reference": [
+        "S",
+        "IY",
+        "Y",
+        "UW",
+        "B",
+        "AY"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/see_you_bye.wav"
+    },
+    "avocados_grow": {
+      "words": [
+        "avocados",
+        "grow"
+      ],
+      "predicted": [
+        "AH",
+        "V",
+        "K",
+        "AO",
+        "AE",
+        "F",
+        "OW",
+        "S",
+        "G",
+        "ER",
+        "W"
+      ],
+      "reference": [
+        "AE",
+        "V",
+        "AH",
+        "K",
+        "AA",
+        "D",
+        "OW",
+        "Z",
+        "G",
+        "R",
+        "OW"
+      ],
+      "path": "artifacts/eval/more_fly/proofs/sentences/avocados_grow.wav"
+    }
+  }
+}
