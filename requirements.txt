@@ -1,0 +1,12 @@
+# Core dependencies
+numpy>=1.24.0
+soundfile>=0.12.0
+
+# CMUdict for pronunciation dictionary
+cmudict>=1.0.0
+
+# G2P for OOV words (grapheme-to-phoneme)
+g2p_en>=2.1.0
+
+# Optional: for plotting KC/MBON activity
+# matplotlib>=3.7.0

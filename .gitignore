@@ -1,0 +1,18 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+# keep freeze models/artifacts; ignore local compare dumps
+artifacts/compare/
+artifacts/compare_g2p/
+artifacts/stage2/
+artifacts/stage2b/
+*.bak
