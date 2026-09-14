@@ -2,6 +2,21 @@
 
 This directory contains PN→KC connectivity data derived from published fly connectome datasets.
 
+## Important: This is a Stats-Matched Fallback
+
+**The `hemibrain_pn_kc.npz` file is NOT raw hemibrain synapse data.**
+
+Extracting the actual PN→KC connectivity matrix from the full hemibrain dataset requires:
+- Downloading ~47GB uncompressed neuprint data
+- Filtering ~8GB of neuron metadata to identify PNs and KCs by cell type
+- Processing ~4.8GB of connection tables to extract PN→KC synapses
+- Significant computational resources and API access
+
+This was impractical in a cloud agent environment. Instead, we provide a **deterministic 
+fallback matrix** that matches published hemibrain statistics (connectivity distribution, 
+average claws per KC, sparsity pattern) but uses statistically-matched random sampling 
+rather than actual synapse locations.
+
 ## Sources
 
 ### hemibrain v1.0.1
@@ -15,7 +30,7 @@ This directory contains PN→KC connectivity data derived from published fly con
 - **GitHub**: https://github.com/bocklab/pn_kc
 - **Figshare**: https://doi.org/10.6084/m9.figshare.19092242.v1
 
-Key statistics from the literature:
+Key statistics from the literature (used to generate fallback):
 - ~180 olfactory PN types
 - ~1963 KCs in hemibrain (one hemisphere)
 - Average 6.8 ± 2.1 PNs per KC claw
@@ -24,12 +39,13 @@ Key statistics from the literature:
 
 ## Files
 
-### hemibrain_pn_kc.npz (fallback)
+### hemibrain_pn_kc.npz (stats-matched fallback)
 A deterministic connectivity matrix generated using hemibrain statistics:
 - Shape: (180 PNs, 2000 KCs)
 - Connectivity pattern matches published statistics
 - Hash documented for reproducibility
-- NOT raw hemibrain data (extraction was impractical in cloud env)
+- Generated with seed=42 for reproducibility
+- **NOT raw hemibrain data** — statistically similar but not real synapses
 
 ### generate_fallback.py
 Script to regenerate the fallback matrix with documented seed.

@@ -1,14 +1,14 @@
 {
   "config": "baseline",
-  "demo_phoneme": 0.9166666666666666,
+  "demo_phoneme": 0.9583333333333334,
   "demo_word": 0.9,
-  "test_phoneme": 0.6002604166666666,
-  "test_word": 0.076,
+  "test_phoneme": 0.650390625,
+  "test_word": 0.132,
   "me": "M IY",
-  "yes": "Y IH Z",
+  "yes": "Y EH Z",
   "hi": "HH AY",
-  "IY_EH": 0.06707946336429309,
-  "AE_AA": 0.13793103448275862,
+  "IY_EH": 0.05838902567710166,
+  "AE_AA": 0.1388888888888889,
   "wiring": "random",
-  "best_epoch": 2
+  "best_epoch": 4
 }

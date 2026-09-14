@@ -750,6 +750,7 @@ class ConfusionMiner:
 KNOWN_HARD_PAIRS = [
     ('IY', 'EH'),   # me: M IY → M EH
     ('IY', 'IH'),   # common IY confusion
+    ('IY', 'UW'),   # me: M IY → M UW (hemibrain wiring geometry)
     ('AE', 'AA'),   # vowel confusion
     ('AE', 'AH'),   # vowel confusion (very common)
     ('AA', 'AH'),   # vowel confusion (very common)

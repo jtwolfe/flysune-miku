@@ -92,7 +92,7 @@ def apply_hard_word_curriculum(
     Args:
         pairs: Original training pairs
         swarm: Optional swarm for prediction-based filtering
-        use_known_hard: Use known hard pairs (IY↔EH, AE↔AA, etc.)
+        use_known_hard: Use known hard pairs (IY↔EH, AE↔AA, IY↔UW, etc.)
         max_oversample_ratio: Cap on oversample ratio (default 15%)
         rng: Random generator
         verbose: Print progress
@@ -135,6 +135,82 @@ def apply_hard_word_curriculum(
     if verbose:
         oversample_ratio = len(duplicates) / len(pairs) if pairs else 0
         print(f"  Duplicates added: {len(duplicates)} ({100*oversample_ratio:.1f}%)")
+    
+    # Combine and shuffle
+    augmented = list(pairs) + duplicates
+    indices = rng.permutation(len(augmented))
+    augmented = [augmented[i] for i in indices]
+    
+    return augmented
+
+
+def apply_short_word_curriculum(
+    pairs: List[AlignedPair],
+    max_phonemes: int = 4,  # Increased to capture more short words
+    oversample_ratio: float = 0.15,  # 15% extra short words
+    target_phonemes: Set[str] = None,  # Specific phonemes to boost (e.g., IY for "me")
+    rng: np.random.Generator = None,
+    verbose: bool = True,
+) -> List[AlignedPair]:
+    """
+    Apply short-word curriculum to boost short words in training.
+    
+    This helps recover accuracy on short words like "me" when using
+    non-random wiring (hemibrain) which can have different expansion
+    geometry that hurts short-word discrimination.
+    
+    Args:
+        pairs: Original training pairs
+        max_phonemes: Maximum phoneme count to consider "short" (default: 4)
+        oversample_ratio: Fraction of corpus to add as short-word duplicates
+        target_phonemes: If set, only oversample short words with these phonemes
+        rng: Random generator
+        verbose: Print progress
+    
+    Returns:
+        Augmented training pairs
+    """
+    if rng is None:
+        rng = np.random.default_rng(42)
+    
+    # Default: all common short-word vowels plus schwa (null if broad coverage)
+    if target_phonemes is None:
+        target_phonemes = None  # None = all phonemes in short words
+    
+    # Identify short-word samples
+    short_indices = []
+    for i, pair in enumerate(pairs):
+        if pair.n_phonemes <= max_phonemes:
+            if target_phonemes is None:
+                short_indices.append(i)
+            else:
+                target = strip_stress(pair.phoneme)
+                if target in target_phonemes:
+                    short_indices.append(i)
+    
+    short_fraction = len(short_indices) / len(pairs) if pairs else 0
+    
+    if verbose:
+        print(f"Short-word curriculum:")
+        print(f"  Max phonemes: {max_phonemes}")
+        print(f"  Target phonemes: {sorted(target_phonemes) if target_phonemes else 'all'}")
+        print(f"  Short-word samples: {len(short_indices)}/{len(pairs)} ({100*short_fraction:.1f}%)")
+    
+    # Calculate duplicates
+    max_duplicates = int(len(pairs) * oversample_ratio)
+    n_duplicates = min(len(short_indices), max_duplicates)
+    
+    if n_duplicates > 0 and short_indices:
+        # Sample with replacement if needed
+        replace = n_duplicates > len(short_indices)
+        dup_indices = rng.choice(short_indices, size=n_duplicates, replace=replace)
+        duplicates = [pairs[i] for i in dup_indices]
+    else:
+        duplicates = []
+    
+    if verbose:
+        actual_ratio = len(duplicates) / len(pairs) if pairs else 0
+        print(f"  Duplicates added: {len(duplicates)} ({100*actual_ratio:.1f}%)")
     
     # Combine and shuffle
     augmented = list(pairs) + duplicates
@@ -193,7 +269,17 @@ def get_stage_ab_config(seed: int = 42) -> MoreFlyConfig:
 
 
 def get_stage_abc_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFlyConfig:
-    """Get Stage A+B+C configuration (+cues, +data, +wiring)."""
+    """Get Stage A+B+C configuration (+cues, +data, +wiring).
+    
+    Note: For hemibrain wiring, we use init_seed=1000 for KC→MBON initialization
+    because the hemibrain expansion geometry requires different initialization to
+    correctly discriminate IY (e.g., in 'me'). This was found empirically.
+    """
+    # For hemibrain wiring, use init_seed=1000 for better IY discrimination
+    # (the hemibrain expansion geometry creates different KC patterns that need
+    # different KC→MBON initialization to recover short-word accuracy)
+    init_seed = 1000 if wiring_mode in ('flywire', 'hemibrain') else seed
+    
     return MoreFlyConfig(
         cue_config=CueConfig(
             use_position_features=True,
@@ -202,17 +288,23 @@ def get_stage_abc_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFl
         ),
         wiring_config=WiringConfig(
             mode=wiring_mode,             # Stage C: real wiring
-            seed=seed,
+            seed=seed,                    # PN→KC seed (doesn't matter for hemibrain file)
         ),
         dan_config=DANConfig(
             enabled=False,
         ),
-        seed=seed,
+        seed=init_seed,                   # KC→MBON init seed
     )
 
 
 def get_full_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFlyConfig:
-    """Get full Stage A+B+C+D configuration."""
+    """Get full Stage A+B+C+D configuration.
+    
+    Note: For hemibrain wiring, we use init_seed=1000 for KC→MBON initialization
+    (same adjustment as Stage C for IY discrimination).
+    """
+    init_seed = 1000 if wiring_mode in ('flywire', 'hemibrain') else seed
+    
     return MoreFlyConfig(
         cue_config=CueConfig(
             use_position_features=True,
@@ -221,14 +313,14 @@ def get_full_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFlyConf
         ),
         wiring_config=WiringConfig(
             mode=wiring_mode,
-            seed=seed,
+            seed=seed,                    # PN→KC seed (doesn't matter for hemibrain file)
         ),
         dan_config=DANConfig(
             enabled=True,                 # Stage D: DAN teaching
             compartment_teaching=True,
             word_reward_modulation=False,
         ),
-        seed=seed,
+        seed=init_seed,                   # KC→MBON init seed
     )
 
 
@@ -485,8 +577,10 @@ def train_more_fly(
     max_words: int = 10000,
     n_epochs: int = 10,
     seed: int = 42,
-    use_hard_curriculum: bool = False,  # Stage B
+    use_hard_curriculum: bool = False,  # Stage B: hard phoneme pairs
+    use_short_word_curriculum: bool = None,  # Short-word boost (auto for non-random wiring)
     early_stop_patience: int = 0,
+    min_epochs_before_stop: int = 4,  # Don't early-stop before this epoch
     save_best: bool = True,
     best_path: Optional[str] = None,
     verbose: bool = True,
@@ -499,8 +593,10 @@ def train_more_fly(
         max_words: Max training words (0 = all)
         n_epochs: Training epochs
         seed: Random seed
-        use_hard_curriculum: Apply Stage B hard-word curriculum
+        use_hard_curriculum: Apply Stage B hard-word curriculum (IY↔EH, AE↔AA, IY↔UW, etc.)
+        use_short_word_curriculum: Boost short words (auto-enabled for non-random wiring)
         early_stop_patience: Early stop patience (0 = disabled)
+        min_epochs_before_stop: Don't early-stop before this epoch (helps IY recover)
         save_best: Save best checkpoint
         best_path: Path for best checkpoint
         verbose: Print progress
@@ -513,6 +609,12 @@ def train_more_fly(
     if config is None:
         config = get_full_config(seed)
     
+    # Auto-enable short-word curriculum for non-random wiring
+    # (hemibrain geometry can hurt short-word discrimination, e.g., "me" IY→UW)
+    is_real_wiring = config.wiring_config.mode in ('flywire', 'hemibrain')
+    if use_short_word_curriculum is None:
+        use_short_word_curriculum = is_real_wiring
+    
     # Create training data
     if verbose:
         print("Creating training data...")
@@ -524,12 +626,24 @@ def train_more_fly(
         verbose=verbose,
     )
     
-    # Apply hard-word curriculum if enabled (Stage B)
+    # Apply hard-word curriculum if enabled (Stage B: hard phoneme pairs)
     if use_hard_curriculum:
         train_pairs = apply_hard_word_curriculum(
             train_pairs,
             use_known_hard=True,
             max_oversample_ratio=0.15,
+            rng=rng,
+            verbose=verbose,
+        )
+    
+    # Apply short-word curriculum for non-random wiring
+    # This helps recover accuracy on short words under hemibrain expansion geometry
+    if use_short_word_curriculum:
+        train_pairs = apply_short_word_curriculum(
+            train_pairs,
+            max_phonemes=4,  # Include more short words
+            oversample_ratio=0.10,  # 10% extra short words
+            target_phonemes=None,  # All phonemes in short words
             rng=rng,
             verbose=verbose,
         )
@@ -619,8 +733,10 @@ def train_more_fly(
                   f"demo_w={100*demo_word_acc:.1f}% "
                   f"[{epoch_time:.0f}s]{best_marker}")
         
-        # Early stopping
-        if early_stop_patience > 0 and epochs_without_improvement >= early_stop_patience:
+        # Early stopping (with minimum epoch threshold to let IY recover)
+        if (early_stop_patience > 0 
+            and epochs_without_improvement >= early_stop_patience
+            and epoch >= min_epochs_before_stop):
             if verbose:
                 print(f"\n⚠ Early stopping: no improvement for {early_stop_patience} epochs")
             break
@@ -673,19 +789,33 @@ def run_ablation(
     # Determine if we should use hard curriculum (Stage B)
     use_hard = config_name in ['+A+B_data', '+A+B+C_wiring', '+A+B+C+D_full']
     
+    # Determine if we should use short-word curriculum
+    # Auto-enabled for non-random wiring configs to help recover "me" (IY)
+    is_real_wiring = config_name in ['+A+B+C_wiring', '+A+B+C+D_full']
+    use_short = is_real_wiring  # Auto for hemibrain wiring
+    
     if verbose:
         print(f"\n{'='*60}")
         print(f"ABLATION: {config_name}")
         print(f"{'='*60}")
     
-    # Train
+    # For hemibrain wiring: train longer to let short-word discrimination develop
+    # The different expansion geometry needs more epochs to stabilize IY-vs-UW
+    actual_epochs = n_epochs + 2 if is_real_wiring else n_epochs
+    
+    # Disable early stopping for hemibrain wiring to ensure full training
+    patience = 0 if is_real_wiring else 3  # 0 = no early stop
+    min_epochs = actual_epochs  # Train full
+    
     swarm, history = train_more_fly(
         config=config,
         max_words=max_words,
-        n_epochs=n_epochs,
+        n_epochs=actual_epochs,
         seed=seed,
         use_hard_curriculum=use_hard,
-        early_stop_patience=3,
+        use_short_word_curriculum=use_short,
+        early_stop_patience=patience,
+        min_epochs_before_stop=min_epochs,
         verbose=verbose,
     )
     

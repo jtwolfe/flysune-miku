@@ -2,13 +2,13 @@
   "config": "+A+B+C_wiring",
   "demo_phoneme": 0.9583333333333334,
   "demo_word": 0.9,
-  "test_phoneme": 0.6171875,
-  "test_word": 0.104,
-  "me": "M UW",
+  "test_phoneme": 0.615234375,
+  "test_word": 0.092,
+  "me": "M IY",
   "yes": "Y EH S",
   "hi": "HH AY",
-  "IY_EH": 0.07946336429308566,
-  "AE_AA": 0.14395183360700603,
+  "IY_EH": 0.06260991909954274,
+  "AE_AA": 0.16099773242630386,
   "wiring": "hemibrain",
-  "best_epoch": 5
+  "best_epoch": 4
 }

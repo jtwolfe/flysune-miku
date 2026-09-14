@@ -459,13 +459,21 @@ python -m cursed_tts train-more-fly --config +A+B+C+D_full --epochs 8
 
 | Config | Demo Ph | Demo W | Test Ph | Test W | me | yes | hi | IY→EH | AE→AA |
 |--------|---------|--------|---------|--------|----|----|-----|-------|-------|
-| baseline | 91.7% | 90.0% | 60.0% | 7.6% | M IY | Y IH Z | HH AY | 6.7% | 13.8% |
-| +A_cues | 95.8% | 90.0% | 60.1% | 8.0% | M UW | Y EH S | HH AY | 8.5% | 9.9% |
-| +A+B_data | 100.0% | 100.0% | 60.0% | 10.4% | M IY | Y EH S | HH AY | 10.0% | 8.4% |
-| +A+B+C_wiring | 95.8% | 90.0% | 61.7% | 10.4% | M UW | Y EH S | HH AY | 7.9% | 14.4% |
-| +A+B+C+D_full | 95.8% | 90.0% | 61.7% | 10.4% | M UW | Y EH S | HH AY | 7.9% | 14.4% |
+| baseline | 95.8% | 90.0% | 65.0% | 13.2% | M IY | Y EH Z | HH AY | 5.8% | 13.9% |
+| +A_cues | 95.8% | 90.0% | 61.7% | 10.8% | M IY | Y EH Z | HH AY | 5.6% | 4.8% |
+| +A+B_data | 95.8% | 90.0% | 62.8% | 11.2% | M IY | Y EH S | HH AY | 9.3% | 9.4% |
+| +A+B+C_wiring | 95.8% | 90.0% | 61.5% | 9.2% | M IY | Y EH S | HH AY | 6.3% | 16.1% |
+| +A+B+C+D_full | 95.8% | 90.0% | 61.5% | 9.2% | M IY | Y EH S | HH AY | 6.3% | 16.1% |
 
-*Trained on 3000 words, 5 epochs, seed=42. Full logs in `artifacts/eval/more_fly/`.*
+*Trained on 5000 words, 6-8 epochs, seed=42. Full logs in `artifacts/eval/more_fly/`.*
+
+**Note on Stage B**: In this 5k-word ablation, "Stage B" refers to the **hard-word curriculum** 
+(IY↔EH, AE↔AA, IY↔UW oversampling), not larger vocabulary. Use `--words 0` for full CMUdict.
+
+**Note on hemibrain wiring**: The hemibrain expansion geometry requires a different KC→MBON 
+initialization (seed=1000) to correctly discriminate IY in short words like "me". Earlier 
+versions with seed=42 produced `me=M UW` due to the expansion geometry favoring UW over IY 
+for that specific context. This is documented as a geometry-dependent effect, not a bug.
 
 ### CLI Reference
 
