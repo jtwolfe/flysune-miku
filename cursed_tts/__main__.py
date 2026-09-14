@@ -90,6 +90,33 @@ def cmd_speak(args):
         print(f"\nSaved to: {output_path}")
         return
     
+    # Check for MARIAN voice mode
+    voice = getattr(args, 'voice', None)
+    if voice and voice.lower() == 'marian':
+        from .speak import MarianSwarmSpeaker
+        
+        if args.output:
+            output_path = args.output
+        else:
+            Path("artifacts/marian").mkdir(parents=True, exist_ok=True)
+            output_path = f"artifacts/marian/{word_clean}.wav"
+        
+        swarm_model = getattr(args, 'swarm_model', 'model_swarm.npz')
+        voicebank_path = getattr(args, 'voicebank', None)
+        vote_strategy = getattr(args, 'vote', None)
+        
+        speaker = MarianSwarmSpeaker.from_model_file(
+            swarm_model, 
+            voicebank_path=voicebank_path,
+            vote_strategy=vote_strategy
+        )
+        audio, audio_ph, ref_ph, known = speaker.speak(
+            args.word, output_path, verbose=True
+        )
+        print(f"\nSaved to: {output_path}")
+        print(f"Voice: MARIAN ILUSTRADO by Kanabun")
+        return
+    
     # Check for swarm mode
     if getattr(args, 'swarm', False):
         from .speak import SwarmSpeaker
@@ -171,6 +198,26 @@ def cmd_speak_all(args):
                 print(f"Error on '{word}': {e}")
         
         print(f"\nStage 2 WAVs saved to: {output_dir}")
+        return
+    
+    # Check for MARIAN voice mode
+    voice = getattr(args, 'voice', None)
+    if voice and voice.lower() == 'marian':
+        from .speak import MarianSwarmSpeaker
+        
+        output_dir = Path(args.output_dir) / "marian"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        swarm_model = getattr(args, 'swarm_model', 'model_swarm.npz')
+        voicebank_path = getattr(args, 'voicebank', None)
+        vote_strategy = getattr(args, 'vote', None)
+        
+        speaker = MarianSwarmSpeaker.from_model_file(
+            swarm_model,
+            voicebank_path=voicebank_path,
+            vote_strategy=vote_strategy
+        )
+        results = speaker.speak_all(str(output_dir), verbose=True)
         return
     
     # Check for swarm mode
@@ -550,6 +597,11 @@ Examples:
     speak_parser.add_argument('--vote', type=str, default=None,
                               choices=['argmax', 'softmax', 'margin', 'calibrated'],
                               help='Override swarm voting strategy')
+    # MARIAN voice option
+    speak_parser.add_argument('--voice', type=str, default=None,
+                              help='Voice to use: "marian" for MARIAN ILUSTRADO voicebank')
+    speak_parser.add_argument('--voicebank', type=str, default=None,
+                              help='Path to UTAU voicebank directory (for --voice marian)')
     # Legacy flags
     speak_parser.add_argument('--stage2', action='store_true',
                               help='[LEGACY] Use Stage 2 mel + Griffin-Lim')
@@ -576,6 +628,11 @@ Examples:
     speak_all_parser.add_argument('--vote', type=str, default=None,
                                    choices=['argmax', 'softmax', 'margin', 'calibrated'],
                                    help='Override swarm voting strategy')
+    # MARIAN voice option
+    speak_all_parser.add_argument('--voice', type=str, default=None,
+                                   help='Voice to use: "marian" for MARIAN ILUSTRADO voicebank')
+    speak_all_parser.add_argument('--voicebank', type=str, default=None,
+                                   help='Path to UTAU voicebank directory (for --voice marian)')
     # Legacy flags
     speak_all_parser.add_argument('--stage2', action='store_true',
                                    help='[LEGACY] Use Stage 2')

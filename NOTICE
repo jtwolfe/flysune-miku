@@ -1,0 +1,60 @@
+NOTICE - Third-Party Attribution
+=================================
+
+This project includes or references the following third-party materials:
+
+
+MARIAN ILUSTRADO Voicebank
+--------------------------
+Voicebank: MARIAN ILUSTRADO (English ARPAsing)
+Author: Kanabun
+Download: https://downloadmarian.carrd.co/
+License: Free to use with attribution
+
+Terms of Use Summary (as of the voicebank's release):
+- Attribution required: State the name "MARIAN" when publishing work
+- Commercial use allowed with proper credit to the author
+- Editing and redistribution of samples allowed with attribution
+- No NFT/cryptocurrency usage
+- Prohibited: illegal content, bigotry, explicit underage content
+
+Full terms available at the download page.
+
+The cursed_tts/voicebanks module provides integration with this voicebank
+for real-sample audio synthesis. If MARIAN samples are included in this
+distribution, they are provided under the voicebank's original license.
+
+
+CMUdict Pronunciation Dictionary
+--------------------------------
+The CMU Pronouncing Dictionary (cmudict) is used for grapheme-to-phoneme
+reference data. CMUdict is in the public domain.
+http://www.speech.cs.cmu.edu/cgi-bin/cmudict
+
+
+FlyWire Connectome Data
+-----------------------
+This project is inspired by the FlyWire fruit fly brain connectome project.
+Hemibrain wiring data referenced in artifacts/connectome/ is from the
+FlyEM hemibrain project at HHMI Janelia Research Campus.
+- FlyWire: https://flywire.ai/
+- Hemibrain: https://neuprint.janelia.org/
+
+
+Project Mascot
+--------------
+Flysune Miku mascot art is fan-created content inspired by Hatsune Miku.
+Not affiliated with Crypton Future Media.
+No Vocaloid or Crypton samples are included in this project.
+
+
+g2p_en Library
+--------------
+The g2p_en library may be used for out-of-vocabulary word pronunciation.
+https://github.com/Kyubyong/g2p
+
+
+Python Dependencies
+-------------------
+NumPy, SciPy, and other dependencies are licensed under their respective
+open-source licenses (BSD, MIT, etc.). See pyproject.toml for details.

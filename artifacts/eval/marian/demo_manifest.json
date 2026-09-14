@@ -1,0 +1,273 @@
+{
+  "voicebank": "MARIAN ILUSTRADO",
+  "author": "Kanabun",
+  "voicebank_path": null,
+  "marian_available": false,
+  "words": [
+    {
+      "word": "cat",
+      "phonemes": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "formant_path": "artifacts/eval/marian/cat_formant.wav",
+      "marian_path": "artifacts/eval/marian/cat_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 3
+    },
+    {
+      "word": "dog",
+      "phonemes": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "formant_path": "artifacts/eval/marian/dog_formant.wav",
+      "marian_path": "artifacts/eval/marian/dog_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 3
+    },
+    {
+      "word": "bat",
+      "phonemes": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "formant_path": "artifacts/eval/marian/bat_formant.wav",
+      "marian_path": "artifacts/eval/marian/bat_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 3
+    },
+    {
+      "word": "yes",
+      "phonemes": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "formant_path": "artifacts/eval/marian/yes_formant.wav",
+      "marian_path": "artifacts/eval/marian/yes_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 3
+    },
+    {
+      "word": "no",
+      "phonemes": [
+        "N",
+        "OW"
+      ],
+      "formant_path": "artifacts/eval/marian/no_formant.wav",
+      "marian_path": "artifacts/eval/marian/no_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 2
+    },
+    {
+      "word": "me",
+      "phonemes": [
+        "M",
+        "IY"
+      ],
+      "formant_path": "artifacts/eval/marian/me_formant.wav",
+      "marian_path": "artifacts/eval/marian/me_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 2
+    },
+    {
+      "word": "you",
+      "phonemes": [
+        "Y",
+        "UW"
+      ],
+      "formant_path": "artifacts/eval/marian/you_formant.wav",
+      "marian_path": "artifacts/eval/marian/you_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 2
+    },
+    {
+      "word": "hi",
+      "phonemes": [
+        "HH",
+        "AY"
+      ],
+      "formant_path": "artifacts/eval/marian/hi_formant.wav",
+      "marian_path": "artifacts/eval/marian/hi_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 2
+    },
+    {
+      "word": "bye",
+      "phonemes": [
+        "B",
+        "AY"
+      ],
+      "formant_path": "artifacts/eval/marian/bye_formant.wav",
+      "marian_path": "artifacts/eval/marian/bye_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 2
+    },
+    {
+      "word": "go",
+      "phonemes": [
+        "G",
+        "OW"
+      ],
+      "formant_path": "artifacts/eval/marian/go_formant.wav",
+      "marian_path": "artifacts/eval/marian/go_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 2
+    },
+    {
+      "word": "mushroom",
+      "phonemes": [
+        "M",
+        "AH",
+        "SH",
+        "R",
+        "UW",
+        "M"
+      ],
+      "formant_path": "artifacts/eval/marian/mushroom_formant.wav",
+      "marian_path": "artifacts/eval/marian/mushroom_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 6
+    },
+    {
+      "word": "connectome",
+      "phonemes": [
+        "K",
+        "AA",
+        "N",
+        "N",
+        "EH",
+        "K",
+        "T",
+        "AA",
+        "M",
+        "EH"
+      ],
+      "formant_path": "artifacts/eval/marian/connectome_formant.wav",
+      "marian_path": "artifacts/eval/marian/connectome_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 10
+    },
+    {
+      "word": "chaos",
+      "phonemes": [
+        "K",
+        "EY",
+        "AA",
+        "S"
+      ],
+      "formant_path": "artifacts/eval/marian/chaos_formant.wav",
+      "marian_path": "artifacts/eval/marian/chaos_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 4
+    },
+    {
+      "word": "hatsune",
+      "phonemes": [
+        "HH",
+        "AE",
+        "T",
+        "S",
+        "AH",
+        "N",
+        "EH"
+      ],
+      "formant_path": "artifacts/eval/marian/hatsune_formant.wav",
+      "marian_path": "artifacts/eval/marian/hatsune_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 7
+    },
+    {
+      "word": "australia",
+      "phonemes": [
+        "AO",
+        "S",
+        "T",
+        "R",
+        "EY",
+        "L",
+        "Y",
+        "AH"
+      ],
+      "formant_path": "artifacts/eval/marian/australia_formant.wav",
+      "marian_path": "artifacts/eval/marian/australia_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 8
+    },
+    {
+      "word": "kenyon",
+      "phonemes": [
+        "K",
+        "EH",
+        "N",
+        "Y",
+        "AH",
+        "N"
+      ],
+      "formant_path": "artifacts/eval/marian/kenyon_formant.wav",
+      "marian_path": "artifacts/eval/marian/kenyon_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 6
+    },
+    {
+      "word": "flywire",
+      "phonemes": [
+        "F",
+        "L",
+        "IY",
+        "W",
+        "IH",
+        "R",
+        "EH"
+      ],
+      "formant_path": "artifacts/eval/marian/flywire_formant.wav",
+      "marian_path": "artifacts/eval/marian/flywire_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 7
+    },
+    {
+      "word": "neural",
+      "phonemes": [
+        "N",
+        "UH",
+        "R",
+        "AH",
+        "L"
+      ],
+      "formant_path": "artifacts/eval/marian/neural_formant.wav",
+      "marian_path": "artifacts/eval/marian/neural_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 5
+    },
+    {
+      "word": "miku",
+      "phonemes": [
+        "M",
+        "IH",
+        "K",
+        "AH"
+      ],
+      "formant_path": "artifacts/eval/marian/miku_formant.wav",
+      "marian_path": "artifacts/eval/marian/miku_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 4
+    },
+    {
+      "word": "voice",
+      "phonemes": [
+        "V",
+        "OY",
+        "S"
+      ],
+      "formant_path": "artifacts/eval/marian/voice_formant.wav",
+      "marian_path": "artifacts/eval/marian/voice_marian.wav",
+      "marian_samples": 0,
+      "total_phonemes": 3
+    }
+  ],
+  "total_demos": 20
+}
