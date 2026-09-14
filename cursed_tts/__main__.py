@@ -377,8 +377,8 @@ Examples:
                                      help='Random seed (default: 42)')
     # Voting/arbitration options
     train_swarm_parser.add_argument('--vote', type=str, default='softmax',
-                                     choices=['argmax', 'softmax', 'margin'],
-                                     help='Voting strategy: argmax, softmax, margin (default: softmax)')
+                                     choices=['argmax', 'softmax', 'margin', 'calibrated'],
+                                     help='Voting strategy: argmax, softmax, margin, calibrated (default: softmax)')
     train_swarm_parser.add_argument('--vote-temp', type=float, default=0.5,
                                      help='Softmax temperature (default: 0.5, lower=sharper)')
     train_swarm_parser.add_argument('--vote-margin', type=float, default=0.1,
@@ -404,7 +404,7 @@ Examples:
     speak_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                               help='Swarm model path (default: model_swarm.npz)')
     speak_parser.add_argument('--vote', type=str, default=None,
-                              choices=['argmax', 'softmax', 'margin'],
+                              choices=['argmax', 'softmax', 'margin', 'calibrated'],
                               help='Override swarm voting strategy')
     # Legacy flags
     speak_parser.add_argument('--stage2', action='store_true',
@@ -430,7 +430,7 @@ Examples:
     speak_all_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                                    help='Swarm model path')
     speak_all_parser.add_argument('--vote', type=str, default=None,
-                                   choices=['argmax', 'softmax', 'margin'],
+                                   choices=['argmax', 'softmax', 'margin', 'calibrated'],
                                    help='Override swarm voting strategy')
     # Legacy flags
     speak_all_parser.add_argument('--stage2', action='store_true',

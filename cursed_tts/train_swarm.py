@@ -178,6 +178,7 @@ def train_swarm(
     early_stop_patience: int = 0,
     save_best: bool = True,
     best_path: Optional[str] = None,
+    fit_calibration: bool = True,
     verbose: bool = True,
 ) -> Tuple[FlySwarm, Dict]:
     """
@@ -189,12 +190,13 @@ def train_swarm(
         n_epochs: Training epochs
         context_size: Letter context window size
         seed: Random seed
-        vote_strategy: Voting strategy ('argmax', 'softmax', 'margin')
+        vote_strategy: Voting strategy ('argmax', 'softmax', 'margin', 'calibrated')
         vote_temperature: Temperature for softmax voting
         vote_margin: Minimum margin for margin voting
         early_stop_patience: Stop if demo_phoneme doesn't improve for N epochs (0=disabled)
         save_best: Save best checkpoint by demo_phoneme accuracy
         best_path: Path for best checkpoint (default: model_swarm_best.npz)
+        fit_calibration: Fit Platt calibration on test pairs after training
         verbose: Print progress
     
     Returns:
@@ -345,6 +347,25 @@ def train_swarm(
             print(f"\n✓ Restoring best weights from epoch {best_epoch} "
                   f"(demo_phoneme={100*best_demo_phoneme:.1f}%)")
         _restore_swarm_weights(swarm, best_weights)
+    
+    # Fit calibration on held-out test pairs (per-MBON bias/gain normalization)
+    if fit_calibration and len(test_pairs_filtered) > 0:
+        if verbose:
+            print("\n" + "-" * 40)
+            print("CALIBRATION (per-phoneme Platt scaling)")
+            print("-" * 40)
+        swarm.fit_calibration(test_pairs_filtered, verbose=verbose)
+        history['calibration_fitted'] = True
+        
+        # Evaluate with calibrated voting
+        if verbose:
+            cal_phoneme_acc, cal_word_acc, _ = evaluate_swarm_words(
+                swarm, demo_in_lex, lexicon
+            )
+            print(f"  Post-calibration demo: phoneme={100*cal_phoneme_acc:.1f}%, "
+                  f"word={100*cal_word_acc:.1f}%")
+    else:
+        history['calibration_fitted'] = False
     
     # Save best checkpoint if requested
     if save_best and best_weights is not None:
