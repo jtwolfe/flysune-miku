@@ -1,0 +1,155 @@
+Training full swarm: 39 phonemes
+Creating aligned G2P training data...
+Loaded CMUdict: 117493 words
+Filtered lexicon: 117223 words
+Training words: 8000 (including 10 demo)
+Test words: 10922
+Aligning training data...
+  Aligned 5000/8000 words...
+  Total aligned pairs: 50229
+Aligning test data...
+Training pairs: 50229
+Test pairs: 68916
+Training pairs (filtered): 50229/50229
+Test pairs (filtered): 68916/68916
+FlySwarm: 39 specialist flies for phonemes: AA, AE, AH, AO, EH...
+  Vote strategy: softmax (temp=0.5, margin=0.1)
+
+============================================================
+FLY SWARM TRAINING (One Phoneme Per Fly)
+============================================================
+Specialists: 39 flies
+Phonemes: AA, AE, AH, AO, AW, AY, B, CH, D, DH...
+Training pairs: 50229
+Epochs: 6
+Vote strategy: softmax (temp=0.5, margin=0.1)
+Early stop patience: 3 epochs
+Best checkpoint: enabled
+============================================================
+
+  5000/50229: ensemble_acc=99.3%
+  10000/50229: ensemble_acc=99.1%
+  15000/50229: ensemble_acc=98.7%
+  20000/50229: ensemble_acc=98.5%
+  25000/50229: ensemble_acc=98.2%
+  30000/50229: ensemble_acc=98.0%
+  35000/50229: ensemble_acc=97.8%
+  40000/50229: ensemble_acc=97.7%
+  45000/50229: ensemble_acc=97.6%
+  50000/50229: ensemble_acc=97.5%
+
+Epoch  1/6: ensemble_train=97.4%, test=63.0%, demo_phoneme=75.0%, demo_word=60.0%, avg_specialist=97.8% [120s, total 120s] ★ BEST
+  5000/50229: ensemble_acc=98.2%
+  10000/50229: ensemble_acc=98.0%
+  15000/50229: ensemble_acc=97.9%
+  20000/50229: ensemble_acc=97.9%
+  25000/50229: ensemble_acc=97.8%
+  30000/50229: ensemble_acc=97.7%
+  35000/50229: ensemble_acc=97.6%
+  40000/50229: ensemble_acc=97.5%
+  45000/50229: ensemble_acc=97.4%
+  50000/50229: ensemble_acc=97.4%
+
+Epoch  2/6: ensemble_train=97.4%, test=64.5%, demo_phoneme=79.2%, demo_word=60.0%, avg_specialist=98.3% [114s, total 234s] ★ BEST
+  5000/50229: ensemble_acc=98.5%
+  10000/50229: ensemble_acc=98.2%
+  15000/50229: ensemble_acc=98.3%
+  20000/50229: ensemble_acc=98.1%
+  25000/50229: ensemble_acc=97.9%
+  30000/50229: ensemble_acc=97.9%
+  35000/50229: ensemble_acc=97.8%
+  40000/50229: ensemble_acc=97.6%
+  45000/50229: ensemble_acc=97.6%
+  50000/50229: ensemble_acc=97.5%
+
+Epoch  3/6: ensemble_train=97.5%, test=64.8%, demo_phoneme=79.2%, demo_word=60.0%, avg_specialist=98.4% [114s, total 349s]
+  5000/50229: ensemble_acc=98.5%
+  10000/50229: ensemble_acc=98.6%
+  15000/50229: ensemble_acc=98.5%
+  20000/50229: ensemble_acc=98.4%
+  25000/50229: ensemble_acc=98.3%
+  30000/50229: ensemble_acc=98.2%
+  35000/50229: ensemble_acc=98.1%
+  40000/50229: ensemble_acc=98.0%
+  45000/50229: ensemble_acc=97.9%
+  50000/50229: ensemble_acc=97.8%
+
+Epoch  4/6: ensemble_train=97.8%, test=64.9%, demo_phoneme=87.5%, demo_word=70.0%, avg_specialist=98.5% [110s, total 458s] ★ BEST
+  5000/50229: ensemble_acc=98.9%
+  10000/50229: ensemble_acc=98.7%
+  15000/50229: ensemble_acc=98.6%
+  20000/50229: ensemble_acc=98.5%
+  25000/50229: ensemble_acc=98.3%
+  30000/50229: ensemble_acc=98.2%
+  35000/50229: ensemble_acc=98.2%
+  40000/50229: ensemble_acc=98.1%
+  45000/50229: ensemble_acc=98.1%
+  50000/50229: ensemble_acc=98.0%
+
+Epoch  5/6: ensemble_train=98.0%, test=64.1%, demo_phoneme=87.5%, demo_word=80.0%, avg_specialist=98.5% [113s, total 572s]
+  5000/50229: ensemble_acc=98.9%
+  10000/50229: ensemble_acc=98.8%
+  15000/50229: ensemble_acc=98.7%
+  20000/50229: ensemble_acc=98.6%
+  25000/50229: ensemble_acc=98.6%
+  30000/50229: ensemble_acc=98.5%
+  35000/50229: ensemble_acc=98.5%
+  40000/50229: ensemble_acc=98.4%
+  45000/50229: ensemble_acc=98.3%
+  50000/50229: ensemble_acc=98.2%
+
+Epoch  6/6: ensemble_train=98.2%, test=64.3%, demo_phoneme=75.0%, demo_word=50.0%, avg_specialist=98.6% [120s, total 692s]
+
+✓ Restoring best weights from epoch 4 (demo_phoneme=87.5%)
+
+----------------------------------------
+CALIBRATION (per-phoneme Platt scaling)
+----------------------------------------
+Collecting calibration data...
+  Total samples: 2687724
+Fitting Platt calibration...
+  Calibration fitted successfully
+  Post-calibration demo: phoneme=87.5%, word=70.0%
+Swarm saved to artifacts/eval/baseline_swarm_best.npz (with calibration)
+✓ Best checkpoint saved to artifacts/eval/baseline_swarm_best.npz (epoch 4)
+
+============================================================
+SWARM EVALUATION
+============================================================
+
+--- Demo Words ---
+
+Word            Expected                  Predicted                
+----------------------------------------------------------------------
+cat             K AE T                    K AE T                    ✓
+bat             B AE T                    B AE T                    ✓
+dog             D AO G                    D AO G                    ✓
+go              G OW                      G OW                      ✓
+no              N OW                      N OW                      ✓
+hi              HH AY                     HH IY                     ~
+bye             B AY                      B AY                      ✓
+yes             Y EH S                    Y EH Z                    ~
+me              M IY                      M M                       ~
+you             Y UW                      Y UW                      ✓
+
+Demo: phoneme=87.5%, word=70.0%
+Test sample (100 words): phoneme=70.1%, word=18.0%
+============================================================
+Model loaded from model.npz (trained for 939465 steps)
+
+============================================================
+SWARM vs BASELINE COMPARISON
+============================================================
+
+Metric                           Swarm     Baseline      Delta
+------------------------------------------------------------
+demo_phoneme                     87.5%       100.0%     -12.5%
+demo_word                        70.0%       100.0%     -30.0%
+test_phoneme                     70.1%        76.5%      -6.4%
+test_word                        18.0%        24.0%      -6.0%
+============================================================
+
+★ Best epoch: 4 (demo_phoneme=87.5%)
+Swarm saved to artifacts/eval/baseline_swarm.npz (with calibration)
+
+Swarm saved to: artifacts/eval/baseline_swarm.npz

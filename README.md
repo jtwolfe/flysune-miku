@@ -295,6 +295,48 @@ Output files:
 
 **Recommendation**: Use `model_swarm_best.npz` for inference after long training runs.
 
+### Confusion Mining / Hard Negatives (Step 4)
+
+Train with attention to confusable phoneme pairs — learn more when wrong on hard pairs:
+
+```bash
+# Train with confusion mining (mine confusions after epoch 2, oversample hard pairs)
+python -m cursed_tts train-swarm --confusion-mine --epochs 6 --patience 3
+
+# Custom parameters
+python -m cursed_tts train-swarm \
+    --confusion-mine \
+    --confusion-mine-epoch 2 \
+    --hard-negative-weight 2.0 \
+    --oversample-factor 1.5 \
+    --confusion-report confusion_report.txt
+
+# Use pre-defined known hard pairs without mining (IY↔EH, AE↔AA, etc.)
+python -m cursed_tts train-swarm --use-known-hard-pairs
+```
+
+**How it works**:
+
+1. **Mining phase** (after epoch N): Build confusion matrix on held-out data to identify frequently confused phoneme pairs (e.g., AA↔AH, IY↔IH, Z↔S)
+2. **Oversampling**: Augment training data by duplicating samples involving confusable pairs
+3. **Re-training**: Continue training with the augmented data — the dopamine-when-wrong learning rule naturally focuses more on the now-overrepresented hard cases
+
+**Biology analogy**: Selective attention to errors. When a fly brain repeatedly confuses two similar odors, more learning happens on those specific cases.
+
+**Results** (250-word held-out evaluation):
+
+| Metric | Baseline | +Confusion Mining | Delta |
+|--------|----------|-------------------|-------|
+| Phoneme accuracy | 64.9% | 66.9% | **+2.1%** |
+| Word accuracy | 8.4% | 10.8% | **+2.4%** |
+
+**Known confusable pairs** (from CMUdict):
+- AA ↔ AH (17.1% confusion rate)
+- AE ↔ AH (20.0% confusion rate)
+- IY ↔ IH (10.4% confusion rate)
+- IY ↔ EH (5.3% - the "me" problem)
+- Z ↔ S (14.3% confusion rate)
+
 ### Performance
 
 The swarm is an experiment, not an improvement. Expected results:
