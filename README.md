@@ -189,32 +189,40 @@ The **one-phoneme-per-fly** experiment takes this to the extreme: instead of one
 
 This is closer to the biological concept of **compartment specialization** — each MBON compartment in the real fly responds preferentially to specific odor-reward associations. Here, each "compartment" (specialist fly) specializes in detecting one phoneme.
 
-### Architecture
+### Architecture: Picker Flies + Singer Flies (MoE)
+
+The swarm has two stages: **picker flies** choose the phoneme sequence, then **singer flies** render each phoneme with personalized voices.
 
 ```
     Letter context ("_ca_t__")
             ↓
     ┌───────────────────────────────────────┐
-    │   Shared PN→KC Expansion              │
-    │   (Random projection + sparse coding) │
+    │   PICKER FLIES (G2P Classification)   │
+    │   Shared PN→KC + per-phoneme MBON     │
     └───────────────────────────────────────┘
-            ↓ KC activity (shared)
+            ↓ Predicted phoneme sequence
     ┌─────┬─────┬─────┬─────┬─────┐
-    │ /K/ │ /AE/│ /T/ │ /D/ │ ... │  ← 39 Specialist Flies
-    │ Fly │ Fly │ Fly │ Fly │     │
-    │YES/NO│YES/NO│YES/NO│YES/NO│   │
+    │ /K/ │ /AE/│ /T/ │ /D/ │ ... │  ← SINGER FLIES
+    │ ♪   │ ♪   │ ♪   │ ♪   │     │  (personalized voices)
+    │F0=119│F0=194│F0=112│F0=113│   │
     └──┬──┴──┬──┴──┬──┴──┬──┴─────┘
        │     │     │     │
        ↓     ↓     ↓     ↓
-    Pick phoneme with strongest YES vote
-            ↓
-    Clean formant synthesis → Audio
+    Concatenate audio crumbs → Final WAV
 ```
 
-Each specialist has:
-- **Shared input layer**: Same PN→KC expansion as others (efficiency)
-- **Private output weights**: KC→MBON with 2 outputs (YES/NO)
-- **Same learning rule**: Dopamine-when-wrong (anti-Hebbian)
+**Picker flies** (specialist classification):
+- Shared input layer: Same PN→KC expansion (efficiency)
+- Private output weights: KC→MBON with 2 outputs (YES/NO)
+- Learning rule: Dopamine-when-wrong (anti-Hebbian)
+
+**Singer flies** (personalized synthesis):
+- Each phoneme has its own "voice" with distinct characteristics
+- F0 (pitch): 100-200 Hz range, spread across phonemes
+- Formant shift: 0.9-1.2x (brighter/darker timbres)
+- Vibrato: Some vowels get subtle pitch modulation
+- Breathiness: Fricatives get more noise, vowels less
+- Duration scaling: Diphthongs longer, stops shorter
 
 ### Quick Start (Swarm)
 
@@ -275,11 +283,27 @@ WAV files generated using swarm predictions for:
 - `v0.1.0-g2p-acceptable`: The baseline single-MB model (don't modify)
 - `freeze/g2p-acceptable`: Frozen branch with baseline (don't modify)
 
+### Singer Fly Voice Examples
+
+Each phoneme's singer fly has unique voice characteristics:
+
+| Phoneme | F0 (Hz) | Formant Shift | Vibrato | Notes |
+|---------|---------|---------------|---------|-------|
+| K | 119 | 0.97 | none | Lower, darker stop |
+| AE | 194 | 1.12 | 6 Hz | High, bright with vibrato |
+| T | 112 | 0.97 | none | Low, crisp stop |
+| AO | 120 | 1.01 | 5 Hz | Warm with subtle vibrato |
+| M | ~130 | ~1.0 | none | Resonant nasal |
+| S | ~140 | ~1.05 | none | Breathy fricative |
+
+The result is a "choir of flies" effect where different phonemes are literally sung by different voices — musically cursed but biologically poetic.
+
 ### Future Ideas (Not Implemented)
 
 - **Hierarchical swarms**: Specialists for phoneme *categories* (vowels, stops, fricatives) that then dispatch to sub-specialists
 - **Shared attention**: Let specialists see top-K votes from other specialists before final decision
-- **CMU Arctic integration**: Replace formant crumbs with real phoneme audio units (would require downloading corpora — not done to keep the project lightweight)
+- **UTAU/OpenUTAU voicebank slices**: Replace synthetic formant crumbs with real phoneme audio samples from open voicebanks (see hook in `singer_fly.py`). This would require downloading voicebank files but could provide much higher quality phoneme rendering while keeping the MoE architecture.
+- **CMU Arctic integration**: Use diphone/triphone units from CMU Arctic for more natural concatenative synthesis
 
 ---
 

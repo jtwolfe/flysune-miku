@@ -215,24 +215,52 @@ class Speaker:
 
 class SwarmSpeaker:
     """
-    Speaker using one-phoneme-per-fly ensemble.
+    Speaker using one-phoneme-per-fly ensemble (picker + singer flies).
     
-    Each specialist fly votes YES/NO for its target phoneme.
-    The phoneme with the strongest YES wins.
-    Audio comes from clean formant synthesis.
+    Two stages:
+    1. Picker flies: Each specialist votes YES/NO for its target phoneme.
+       The phoneme with the strongest YES wins.
+    2. Singer flies: Each phoneme has its own personalized audio renderer
+       with distinct voice characteristics (F0, formants, vibrato, etc.)
+    
+    This creates a "mixture of flies" (MoE) synthesis where different parts
+    of the utterance are sung by different specialized flies.
     """
     
-    def __init__(self, swarm):
+    def __init__(self, picker_swarm, singer_swarm=None):
         from .specialist_fly import FlySwarm
-        self.swarm: FlySwarm = swarm
+        from .singer_fly import SingerSwarm
+        
+        self.picker_swarm: FlySwarm = picker_swarm
+        
+        # Create singer swarm with same phonemes as picker
+        if singer_swarm is None:
+            self.singer_swarm = SingerSwarm(
+                phonemes=list(picker_swarm.specialists.keys()),
+                seed=42,
+            )
+        else:
+            self.singer_swarm: SingerSwarm = singer_swarm
+        
+        # Fallback for phonemes not in singer swarm
         self.phoneme_audio = synthesize_all_phonemes()
     
     @classmethod
-    def from_model_file(cls, path: str) -> 'SwarmSpeaker':
+    def from_model_file(cls, path: str, singer_path: Optional[str] = None) -> 'SwarmSpeaker':
         """Load swarm speaker from model file."""
         from .specialist_fly import FlySwarm
-        swarm = FlySwarm.load(path)
-        return cls(swarm)
+        from .singer_fly import SingerSwarm
+        
+        picker_swarm = FlySwarm.load(path)
+        
+        singer_swarm = None
+        if singer_path and Path(singer_path).exists():
+            try:
+                singer_swarm = SingerSwarm.load(singer_path)
+            except Exception:
+                pass
+        
+        return cls(picker_swarm, singer_swarm)
     
     def get_reference_phonemes(self, word: str) -> Tuple[List[str], bool]:
         """Get reference phonemes from CMUdict or G2P."""
@@ -241,12 +269,17 @@ class SwarmSpeaker:
         return phonemes, known
     
     def get_swarm_phonemes(self, word: str, n_phonemes: int) -> List[str]:
-        """Predict phonemes using the fly swarm."""
-        return self.swarm.predict_word(word, n_phonemes)
+        """Predict phonemes using the picker fly swarm."""
+        return self.picker_swarm.predict_word(word, n_phonemes)
     
     def synthesize(self, phonemes: List[str]) -> np.ndarray:
-        """Synthesize audio from phoneme sequence."""
-        return concatenate_phonemes(phonemes, self.phoneme_audio)
+        """
+        Synthesize audio from phoneme sequence using singer flies.
+        
+        Each phoneme is rendered by its own singer fly with personalized
+        voice characteristics. This is the MoE (mixture-of-flies) synthesis.
+        """
+        return self.singer_swarm.synthesize_sequence(phonemes)
     
     def speak(
         self,
