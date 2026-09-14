@@ -368,6 +368,69 @@ def cmd_train_swarm(args):
     print(f"\nSwarm saved to: {args.output}")
 
 
+# MORE FLY training commands
+def cmd_train_more_fly(args):
+    """Train MORE FLY enhanced swarm."""
+    from .train_more_fly import (
+        train_more_fly, ABLATION_CONFIGS,
+        get_baseline_config, get_stage_a_config, get_stage_ab_config,
+        get_stage_abc_config, get_full_config,
+    )
+    
+    config_name = getattr(args, 'config', '+A+B+C+D_full')
+    wiring_mode = getattr(args, 'wiring', 'flywire')
+    
+    # Get config based on selection
+    if config_name == 'baseline':
+        config = get_baseline_config(args.seed)
+    elif config_name == '+A_cues':
+        config = get_stage_a_config(args.seed)
+    elif config_name == '+A+B_data':
+        config = get_stage_ab_config(args.seed)
+    elif config_name == '+A+B+C_wiring':
+        config = get_stage_abc_config(args.seed, wiring_mode)
+    else:  # Full
+        config = get_full_config(args.seed, wiring_mode)
+    
+    # Determine if hard curriculum should be used
+    use_hard = config_name in ['+A+B_data', '+A+B+C_wiring', '+A+B+C+D_full']
+    
+    swarm, history = train_more_fly(
+        config=config,
+        max_words=args.words,
+        n_epochs=args.epochs,
+        seed=args.seed,
+        use_hard_curriculum=use_hard,
+        early_stop_patience=getattr(args, 'patience', 3),
+        save_best=True,
+        best_path=args.output.replace('.npz', '_best.npz'),
+        verbose=True,
+    )
+    
+    swarm.save(args.output)
+    print(f"\nMORE FLY model saved to: {args.output}")
+    print(f"Best checkpoint: {args.output.replace('.npz', '_best.npz')}")
+
+
+def cmd_eval_more_fly(args):
+    """Run MORE FLY ablation evaluation."""
+    from .train_more_fly import run_all_ablations, format_ablation_table
+    
+    results = run_all_ablations(
+        max_words=args.words,
+        n_epochs=args.epochs,
+        seed=args.seed,
+        output_dir=args.output_dir,
+        verbose=True,
+    )
+    
+    # Print markdown table
+    print("\n" + "="*60)
+    print("MARKDOWN TABLE (for PR body)")
+    print("="*60)
+    print(format_ablation_table(results))
+
+
 # Legacy training commands
 def cmd_train_stage2(args):
     """[LEGACY] Train Stage 2 (mel spectrogram regression)."""
@@ -556,6 +619,38 @@ Examples:
     train_s2b_parser.add_argument('--output', '-o', type=str, default='model_stage2b.npz')
     train_s2b_parser.add_argument('--seed', type=int, default=42)
     
+    # MORE FLY training command
+    train_mf_parser = subparsers.add_parser('train-more-fly',
+                                             help='Train MORE FLY enhanced swarm')
+    train_mf_parser.add_argument('--epochs', type=int, default=8,
+                                  help='Training epochs (default: 8)')
+    train_mf_parser.add_argument('--words', type=int, default=10000,
+                                  help='Max training words (0 = all CMUdict)')
+    train_mf_parser.add_argument('--output', '-o', type=str, default='model_more_fly.npz',
+                                  help='Output model path')
+    train_mf_parser.add_argument('--seed', type=int, default=42,
+                                  help='Random seed (default: 42)')
+    # Stage selection
+    train_mf_parser.add_argument('--config', type=str, default='+A+B+C+D_full',
+                                  choices=['baseline', '+A_cues', '+A+B_data', '+A+B+C_wiring', '+A+B+C+D_full'],
+                                  help='Ablation config (default: +A+B+C+D_full)')
+    train_mf_parser.add_argument('--wiring', type=str, default='flywire',
+                                  choices=['random', 'flywire', 'hemibrain'],
+                                  help='Wiring mode (default: flywire)')
+    train_mf_parser.add_argument('--patience', type=int, default=3,
+                                  help='Early stop patience (default: 3)')
+    
+    # Ablation evaluation command
+    eval_mf_parser = subparsers.add_parser('eval-more-fly',
+                                            help='Run MORE FLY ablation evaluation')
+    eval_mf_parser.add_argument('--words', type=int, default=5000,
+                                 help='Max training words per config')
+    eval_mf_parser.add_argument('--epochs', type=int, default=6,
+                                 help='Epochs per config')
+    eval_mf_parser.add_argument('--seed', type=int, default=42)
+    eval_mf_parser.add_argument('--output-dir', type=str, default='artifacts/eval/more_fly',
+                                 help='Output directory for results')
+    
     args = parser.parse_args()
     
     if args.command is None:
@@ -565,6 +660,8 @@ Examples:
     commands = {
         'train': cmd_train,
         'train-swarm': cmd_train_swarm,
+        'train-more-fly': cmd_train_more_fly,
+        'eval-more-fly': cmd_eval_more_fly,
         'speak': cmd_speak,
         'speak-all': cmd_speak_all,
         'eval': cmd_eval,

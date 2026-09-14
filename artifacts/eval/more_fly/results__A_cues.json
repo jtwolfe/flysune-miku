@@ -1,0 +1,14 @@
+{
+  "config": "+A_cues",
+  "demo_phoneme": 0.9583333333333334,
+  "demo_word": 0.9,
+  "test_phoneme": 0.6009114583333334,
+  "test_word": 0.08,
+  "me": "M UW",
+  "yes": "Y EH S",
+  "hi": "HH AY",
+  "IY_EH": 0.08531131750945993,
+  "AE_AA": 0.09906951286261631,
+  "wiring": "random",
+  "best_epoch": 5
+}

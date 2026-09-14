@@ -1,0 +1,14 @@
+{
+  "config": "+A+B+C+D_full",
+  "demo_phoneme": 0.9583333333333334,
+  "demo_word": 0.9,
+  "test_phoneme": 0.6171875,
+  "test_word": 0.104,
+  "me": "M UW",
+  "yes": "Y EH S",
+  "hi": "HH AY",
+  "IY_EH": 0.07946336429308566,
+  "AE_AA": 0.14395183360700603,
+  "wiring": "hemibrain",
+  "best_epoch": 5
+}
