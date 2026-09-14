@@ -122,20 +122,31 @@ def load_oto_ini(oto_path: Path) -> Dict[str, OtoEntry]:
     return entries
 
 
+# Maximum crumb durations (ms) to prevent multi-second samples
+MAX_VOWEL_DURATION_MS = 220
+MAX_CONSONANT_DURATION_MS = 120
+VOWEL_BODY_MS = 80  # Extra body after consonant region for vowels
+
+
 def load_utau_sample(
     wav_path: Path,
     target_sr: int = SAMPLE_RATE,
     oto_entry: Optional[OtoEntry] = None,
+    max_duration_ms: Optional[float] = None,
+    is_vowel: bool = True,
 ) -> np.ndarray:
     """
     Load a UTAU sample WAV and resample to target rate.
     
-    Applies oto.ini timing if provided (offset, cutoff).
+    Applies oto.ini timing if provided (offset, cutoff), with duration capping
+    to prevent multi-second crumbs from full phrase recordings.
     
     Args:
         wav_path: Path to WAV file
         target_sr: Target sample rate
         oto_entry: Optional OtoEntry for timing
+        max_duration_ms: Maximum crumb duration (None = use defaults)
+        is_vowel: Whether this is a vowel (affects default max duration)
     
     Returns:
         Audio signal as float32 numpy array
@@ -193,6 +204,28 @@ def load_utau_sample(
             end_sample = max(offset_samples + 1, min(end_sample, len(audio)))
             
             audio = audio[offset_samples:end_sample]
+            
+            # Cap duration based on oto.consonant + body
+            # ARPAsing WAVs can be full phrase recordings; we only want the crumb
+            if max_duration_ms is None:
+                if is_vowel:
+                    # For vowels: consonant region + vowel body
+                    if oto_entry.consonant > 0:
+                        max_duration_ms = oto_entry.consonant + VOWEL_BODY_MS
+                    else:
+                        max_duration_ms = MAX_VOWEL_DURATION_MS
+                else:
+                    # For consonants: consonant region + small tail
+                    if oto_entry.consonant > 0:
+                        max_duration_ms = oto_entry.consonant + 30
+                    else:
+                        max_duration_ms = MAX_CONSONANT_DURATION_MS
+            
+            # Apply duration cap
+            if max_duration_ms:
+                max_samples = int(max_duration_ms / 1000 * framerate)
+                if len(audio) > max_samples:
+                    audio = audio[:max_samples]
         
         # Resample if needed
         if framerate != target_sr:
@@ -280,6 +313,7 @@ class UTAUSingerFly:
         oto_entry: Optional[OtoEntry] = None,
         fallback_synth: bool = True,
         pitch_shift: float = 0.0,
+        max_duration_ms: Optional[float] = None,
     ):
         """
         Initialize UTAU singer fly for a phoneme.
@@ -290,16 +324,28 @@ class UTAUSingerFly:
             oto_entry: OtoEntry for timing configuration
             fallback_synth: If True, use formant synthesis when sample unavailable
             pitch_shift: Pitch shift in semitones
+            max_duration_ms: Maximum crumb duration (None = auto based on phoneme type)
         """
         self.phoneme = strip_stress(phoneme)
         self.sample_path = sample_path
         self.oto_entry = oto_entry
         self.fallback_synth = fallback_synth
         self.pitch_shift = pitch_shift
+        self.max_duration_ms = max_duration_ms
+        
+        # Determine if vowel for duration capping
+        self._is_vowel = self._check_is_vowel()
         
         # Lazy-loaded audio cache
         self._audio_cache: Optional[np.ndarray] = None
         self._has_sample = sample_path is not None and sample_path.exists()
+    
+    def _check_is_vowel(self) -> bool:
+        """Check if this phoneme is a vowel."""
+        if self.phoneme in PHONEME_INVENTORY:
+            return PHONEME_INVENTORY[self.phoneme].phoneme_type == 'vowel'
+        # Default guess based on common patterns
+        return len(self.phoneme) == 2 and self.phoneme[0] in 'AEIOU'
     
     def _load_sample(self) -> Optional[np.ndarray]:
         """Load and process the UTAU sample."""
@@ -311,6 +357,8 @@ class UTAUSingerFly:
                 self.sample_path,
                 target_sr=SAMPLE_RATE,
                 oto_entry=self.oto_entry,
+                max_duration_ms=self.max_duration_ms,
+                is_vowel=self._is_vowel,
             )
             
             # Apply pitch shift if specified
@@ -413,22 +461,85 @@ class UTAUSingerSwarm:
         # Coverage stats
         self.coverage = get_mapping_coverage(self.available_aliases)
     
+    def _resolve_alias(self, arpasing: str, is_vowel: bool) -> Optional[str]:
+        """
+        Resolve an Arpasing alias to an available sample, trying alternate patterns.
+        
+        ARPAsing voicebanks typically have aliases like:
+        - Standalone: "aa", "k" (may not exist for consonants)
+        - Onset: "- aa", "- k" (vowel/consonant onset)
+        - CV patterns: "k aa", "t iy" (consonant + vowel)
+        - VC patterns: "aa k", "iy t" (vowel + consonant)
+        - Numbered: "aa1", "- aa1" (pitch variants)
+        
+        For consonants especially, the standalone alias may not exist;
+        we need to try "- C" or "C V" patterns.
+        """
+        # Common vowels to try for CV patterns
+        common_vowels = ['aa', 'ae', 'ah', 'iy', 'uw', 'eh', 'ow']
+        
+        # Patterns to try, in order of preference
+        patterns_to_try = []
+        
+        # 1. Direct alias
+        patterns_to_try.append(arpasing)
+        
+        # 2. Onset pattern "- alias"
+        patterns_to_try.append(f"- {arpasing}")
+        
+        # 3. Numbered variants
+        for i in range(1, 4):
+            patterns_to_try.append(f"{arpasing}{i}")
+            patterns_to_try.append(f"- {arpasing}{i}")
+        
+        # 4. For consonants, try CV patterns (consonant + common vowel)
+        if not is_vowel:
+            for vowel in common_vowels:
+                patterns_to_try.append(f"{arpasing} {vowel}")
+        
+        # 5. For vowels, try some common onset patterns
+        if is_vowel:
+            patterns_to_try.append(f"_{arpasing}")  # Alternate onset notation
+        
+        # Try each pattern
+        for pattern in patterns_to_try:
+            if pattern in self.available_samples:
+                return pattern
+        
+        return None
+    
     def _create_singers(self):
         """Create singer flies for each phoneme."""
         for phoneme in self.phoneme_list:
             arpasing = arpabet_to_arpasing(phoneme)
             
+            # Determine if vowel
+            is_vowel = False
+            if phoneme in PHONEME_INVENTORY:
+                is_vowel = PHONEME_INVENTORY[phoneme].phoneme_type == 'vowel'
+            
             sample_path = None
             oto_entry = None
+            resolved_alias = None
             
-            # Try direct mapping
-            if arpasing in self.available_samples:
-                sample_path, oto_entry = self.available_samples[arpasing]
+            # Try to resolve alias with alternate patterns
+            resolved_alias = self._resolve_alias(arpasing, is_vowel)
+            
+            if resolved_alias and resolved_alias in self.available_samples:
+                sample_path, oto_entry = self.available_samples[resolved_alias]
             else:
-                # Try fallback
+                # Try ARPAbet fallback chain
                 fallback = get_arpasing_fallback(phoneme, self.available_aliases)
-                if fallback and fallback in self.available_samples:
-                    sample_path, oto_entry = self.available_samples[fallback]
+                if fallback:
+                    # Check if fallback is vowel for pattern resolution
+                    fallback_arpabet = ARPASING_TO_ARPABET.get(fallback, phoneme)
+                    fb_is_vowel = False
+                    if fallback_arpabet in PHONEME_INVENTORY:
+                        fb_is_vowel = PHONEME_INVENTORY[fallback_arpabet].phoneme_type == 'vowel'
+                    
+                    resolved_fallback = self._resolve_alias(fallback, fb_is_vowel)
+                    if resolved_fallback and resolved_fallback in self.available_samples:
+                        sample_path, oto_entry = self.available_samples[resolved_fallback]
             
             self.singers[phoneme] = UTAUSingerFly(
                 phoneme=phoneme,

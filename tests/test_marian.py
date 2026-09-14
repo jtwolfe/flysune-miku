@@ -288,6 +288,88 @@ class TestPhoneCoverage:
             assert alias is not None
 
 
+class TestAliasResolution:
+    """Test alternate alias pattern resolution."""
+    
+    def test_resolve_onset_pattern(self):
+        """Swarm should try '- alias' pattern for consonants."""
+        # Simulate a voicebank with only onset patterns
+        swarm = UTAUSingerSwarm(
+            voicebank_path=None,
+            phonemes=['K', 'T', 'AA'],
+            fallback_synth=True,
+        )
+        
+        # Add mock samples with onset patterns
+        swarm.available_samples = {
+            '- k': (Path('/mock/k.wav'), None),
+            '- t': (Path('/mock/t.wav'), None),
+            'aa': (Path('/mock/aa.wav'), None),
+        }
+        swarm.available_aliases = set(swarm.available_samples.keys())
+        
+        # Test resolution
+        assert swarm._resolve_alias('k', is_vowel=False) == '- k'
+        assert swarm._resolve_alias('t', is_vowel=False) == '- t'
+        assert swarm._resolve_alias('aa', is_vowel=True) == 'aa'
+    
+    def test_resolve_cv_pattern(self):
+        """Swarm should try 'C V' pattern for consonants."""
+        swarm = UTAUSingerSwarm(
+            voicebank_path=None,
+            phonemes=['K'],
+            fallback_synth=True,
+        )
+        
+        # Only CV pattern available
+        swarm.available_samples = {
+            'k aa': (Path('/mock/k_aa.wav'), None),
+        }
+        swarm.available_aliases = set(swarm.available_samples.keys())
+        
+        # Should find CV pattern when standalone not available
+        result = swarm._resolve_alias('k', is_vowel=False)
+        assert result == 'k aa'
+    
+    def test_resolve_numbered_variants(self):
+        """Swarm should try numbered variants like 'aa1'."""
+        swarm = UTAUSingerSwarm(
+            voicebank_path=None,
+            phonemes=['AA'],
+            fallback_synth=True,
+        )
+        
+        # Only numbered variant available
+        swarm.available_samples = {
+            'aa1': (Path('/mock/aa1.wav'), None),
+        }
+        swarm.available_aliases = set(swarm.available_samples.keys())
+        
+        result = swarm._resolve_alias('aa', is_vowel=True)
+        assert result == 'aa1'
+
+
+class TestDurationCapping:
+    """Test crumb duration capping."""
+    
+    def test_max_duration_constants(self):
+        """Duration constants should be reasonable."""
+        from cursed_tts.voicebanks.utau_singer import (
+            MAX_VOWEL_DURATION_MS, MAX_CONSONANT_DURATION_MS
+        )
+        
+        assert MAX_VOWEL_DURATION_MS == 220
+        assert MAX_CONSONANT_DURATION_MS == 120
+    
+    def test_singer_fly_knows_vowel_type(self):
+        """Singer fly should correctly identify vowel vs consonant."""
+        vowel_fly = UTAUSingerFly(phoneme='AA', fallback_synth=True)
+        consonant_fly = UTAUSingerFly(phoneme='K', fallback_synth=True)
+        
+        assert vowel_fly._is_vowel is True
+        assert consonant_fly._is_vowel is False
+
+
 class TestIntegrationWithSpeaker:
     """Test integration with speak module."""
     

@@ -408,6 +408,11 @@ The result is a "choir of flies" effect where different phonemes are literally s
 
 The project now supports **MARIAN ILUSTRADO**, an English ARPAsing UTAU voicebank by Kanabun, as an optional audio source for singer flies. This replaces (or supplements) the synthetic formant synthesis with real recorded phoneme samples.
 
+**Voice characteristics** (per [ARPAsing directory](https://arpasing.tubs.wtf/en/directories/voicebanks)):
+- **Type**: Masculine, soft/shy
+- **Range**: Approximately C#5–A2
+- **Monopitch** voicebank
+
 ### Quick Start (MARIAN)
 
 ```bash
