@@ -248,9 +248,103 @@ class SpecialistFly:
 VOTE_ARGMAX = 'argmax'      # Raw argmax over YES scores (original, can thrash)
 VOTE_SOFTMAX = 'softmax'    # Softmax with temperature over YES scores
 VOTE_MARGIN = 'margin'      # Require margin between best and second-best
+VOTE_CALIBRATED = 'calibrated'  # Use calibrated probabilities (requires fit_calibration)
 
-VALID_VOTE_STRATEGIES = [VOTE_ARGMAX, VOTE_SOFTMAX, VOTE_MARGIN]
+VALID_VOTE_STRATEGIES = [VOTE_ARGMAX, VOTE_SOFTMAX, VOTE_MARGIN, VOTE_CALIBRATED]
 DEFAULT_VOTE_STRATEGY = VOTE_SOFTMAX
+
+
+class PlattCalibrator:
+    """
+    Per-phoneme score calibration for comparable voting.
+    
+    Uses affine normalization: calibrated = (score - mean) / std * scale + shift
+    This normalizes each phoneme's raw YES scores to a common range, enabling
+    meaningful comparison across specialists with different response distributions.
+    
+    Biology analogy: per-MBON bias/gain adjustment, like neuromodulation
+    that calibrates different compartments' output ranges.
+    """
+    
+    def __init__(self, phonemes: List[str]):
+        self.phonemes = list(phonemes)
+        self.n_phonemes = len(phonemes)
+        # Parameters: [mean, std] for z-score normalization
+        self.params = {p: np.array([0.0, 1.0], dtype=np.float32) for p in phonemes}
+        self.is_fitted = False
+    
+    def fit(
+        self, 
+        scores_by_phoneme: Dict[str, List[float]], 
+        labels_by_phoneme: Dict[str, List[int]],
+        max_iter: int = 100,
+    ):
+        """
+        Fit calibration parameters from score distributions.
+        
+        For each phoneme, learns the mean and std of scores when that phoneme
+        is the CORRECT answer, then uses these to normalize scores.
+        
+        Args:
+            scores_by_phoneme: Dict mapping phoneme to list of raw YES scores
+            labels_by_phoneme: Dict mapping phoneme to list of binary labels (1=correct, 0=wrong)
+            max_iter: Unused (kept for API compatibility)
+        """
+        for phoneme in self.phonemes:
+            scores = np.array(scores_by_phoneme.get(phoneme, []))
+            labels = np.array(labels_by_phoneme.get(phoneme, []))
+            
+            if len(scores) < 10:
+                continue
+            
+            # Get scores only when this phoneme is the CORRECT answer
+            correct_mask = labels == 1
+            if correct_mask.sum() < 5:
+                # Not enough positive examples
+                continue
+            
+            correct_scores = scores[correct_mask]
+            mean = float(np.mean(correct_scores))
+            std = float(np.std(correct_scores))
+            if std < 0.01:
+                std = 0.01  # Prevent division by zero
+            
+            self.params[phoneme] = np.array([mean, std], dtype=np.float32)
+        
+        self.is_fitted = True
+    
+    def calibrate(self, scores: Dict[str, float]) -> Dict[str, float]:
+        """
+        Apply calibration to raw scores for comparable voting.
+        
+        Normalizes each phoneme's score by its learned distribution, then
+        applies sigmoid to convert to probability-like values.
+        """
+        calibrated = {}
+        for phoneme, score in scores.items():
+            if phoneme in self.params:
+                mean, std = self.params[phoneme]
+                z = (score - mean) / std
+                z = np.clip(z, -10, 10)
+                # Convert z-score to probability-like value via sigmoid
+                calibrated[phoneme] = 1.0 / (1.0 + np.exp(-z))
+            else:
+                calibrated[phoneme] = 1.0 / (1.0 + np.exp(-score))
+        return calibrated
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'phonemes': self.phonemes,
+            'params': {p: v.tolist() for p, v in self.params.items()},
+            'is_fitted': self.is_fitted,
+        }
+    
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> 'PlattCalibrator':
+        cal = cls(d.get('phonemes', []))
+        cal.params = {p: np.array(v, dtype=np.float32) for p, v in d.get('params', {}).items()}
+        cal.is_fitted = d.get('is_fitted', False)
+        return cal
 
 
 @dataclass 
@@ -330,6 +424,10 @@ class FlySwarm:
                 )
         
         self.phoneme_list = list(self.specialists.keys())
+        
+        # Calibrator for normalizing specialist scores (per-MBON bias/gain)
+        self.calibrator = PlattCalibrator(self.phoneme_list)
+        
         print(f"FlySwarm: {len(self.specialists)} specialist flies for phonemes: "
               f"{', '.join(self.phoneme_list[:5])}{'...' if len(self.phoneme_list) > 5 else ''}")
         print(f"  Vote strategy: {self.config.vote_strategy} "
@@ -356,12 +454,18 @@ class FlySwarm:
         return winner, scores[winner]
     
     def _vote_softmax(self, scores: Dict[str, float]) -> Tuple[str, float]:
-        """Softmax voting: sample or pick from softmax distribution."""
+        """
+        Softmax voting: convert scores to probabilities and pick winner.
+        
+        Note: While softmax+argmax is mathematically equivalent to argmax,
+        the probability values matter for downstream uses like beam search
+        or confidence thresholding. Lower temperature sharpens the distribution.
+        """
         phonemes = list(scores.keys())
         raw_scores = np.array([scores[p] for p in phonemes])
         
-        # Apply temperature
-        temp = max(self.config.vote_temperature, 0.01)  # Prevent division by zero
+        # Apply temperature (lower = sharper peaks)
+        temp = max(self.config.vote_temperature, 0.01)
         scaled = raw_scores / temp
         
         # Softmax with numerical stability
@@ -369,14 +473,20 @@ class FlySwarm:
         exp_scores = np.exp(scaled)
         probs = exp_scores / exp_scores.sum()
         
-        # Pick highest probability (deterministic softmax)
+        # Pick highest probability
         winner_idx = np.argmax(probs)
         winner = phonemes[winner_idx]
         
-        return winner, probs[winner_idx]
+        return winner, float(probs[winner_idx])
     
     def _vote_margin(self, scores: Dict[str, float]) -> Tuple[str, float]:
-        """Margin voting: require margin between best and second-best."""
+        """
+        Margin voting: require clear margin between best and second-best.
+        
+        If margin is sufficient, returns best with full confidence.
+        If margin is insufficient, does softmax among top-k candidates
+        to get a more nuanced decision when specialists disagree.
+        """
         sorted_items = sorted(scores.items(), key=lambda x: -x[1])
         
         if len(sorted_items) < 2:
@@ -391,9 +501,42 @@ class FlySwarm:
         if margin >= self.config.vote_margin:
             return best_phone, best_score
         
-        # If margin insufficient, use softmax as fallback
-        # This prevents overconfident wrong predictions
-        return self._vote_softmax(scores)
+        # If margin insufficient, apply softmax to top-k candidates only
+        # This gives more weight to close alternatives rather than penalizing
+        top_k = min(5, len(sorted_items))
+        top_phones = [p for p, s in sorted_items[:top_k]]
+        top_scores = np.array([s for p, s in sorted_items[:top_k]])
+        
+        # Softmax with temperature
+        temp = max(self.config.vote_temperature, 0.01)
+        scaled = top_scores / temp
+        scaled = scaled - scaled.max()
+        exp_scores = np.exp(scaled)
+        probs = exp_scores / exp_scores.sum()
+        
+        winner_idx = np.argmax(probs)
+        return top_phones[winner_idx], float(probs[winner_idx])
+    
+    def _vote_calibrated(self, scores: Dict[str, float]) -> Tuple[str, float]:
+        """
+        Calibrated voting: use Platt-scaled probabilities.
+        
+        Applies per-phoneme calibration to normalize raw scores to comparable
+        probabilities, then picks the highest. Requires fit_calibration() first.
+        """
+        if not self.calibrator.is_fitted:
+            # Fallback to softmax if not calibrated
+            return self._vote_softmax(scores)
+        
+        calibrated = self.calibrator.calibrate(scores)
+        
+        # Normalize to sum to 1 for proper probability distribution
+        total = sum(calibrated.values())
+        if total > 0:
+            calibrated = {p: v / total for p, v in calibrated.items()}
+        
+        winner = max(calibrated, key=calibrated.get)
+        return winner, calibrated[winner]
     
     def predict(
         self, 
@@ -405,7 +548,7 @@ class FlySwarm:
         
         Args:
             letter_context: Input context string
-            vote_strategy: Override config vote strategy (argmax/softmax/margin)
+            vote_strategy: Override config vote strategy (argmax/softmax/margin/calibrated)
         
         Returns:
             phoneme: Predicted phoneme
@@ -422,11 +565,69 @@ class FlySwarm:
             winner, confidence = self._vote_softmax(scores)
         elif strategy == VOTE_MARGIN:
             winner, confidence = self._vote_margin(scores)
+        elif strategy == VOTE_CALIBRATED:
+            winner, confidence = self._vote_calibrated(scores)
         else:
             # Fallback to softmax
             winner, confidence = self._vote_softmax(scores)
         
         return winner, confidence, scores
+    
+    def collect_calibration_data(
+        self, 
+        pairs: List['AlignedPair'],
+    ) -> Tuple[Dict[str, List[float]], Dict[str, List[int]]]:
+        """
+        Collect raw scores and labels for calibration fitting.
+        
+        Args:
+            pairs: List of AlignedPair training examples
+        
+        Returns:
+            scores_by_phoneme: Raw YES scores grouped by target phoneme
+            labels_by_phoneme: Binary labels (1=correct) grouped by target phoneme
+        """
+        from .alignment import AlignedPair
+        
+        scores_by_phoneme: Dict[str, List[float]] = {p: [] for p in self.phoneme_list}
+        labels_by_phoneme: Dict[str, List[int]] = {p: [] for p in self.phoneme_list}
+        
+        for pair in pairs:
+            target = strip_stress(pair.phoneme)
+            if target not in self.phoneme_list:
+                continue
+            
+            scores = self._get_raw_scores(pair.letter_context)
+            
+            # For each phoneme, record its score and whether it's the correct target
+            for phoneme, score in scores.items():
+                scores_by_phoneme[phoneme].append(score)
+                labels_by_phoneme[phoneme].append(1 if phoneme == target else 0)
+        
+        return scores_by_phoneme, labels_by_phoneme
+    
+    def fit_calibration(self, pairs: List['AlignedPair'], verbose: bool = True):
+        """
+        Fit per-phoneme calibration on held-out data.
+        
+        Args:
+            pairs: Held-out AlignedPair examples for calibration
+            verbose: Print progress
+        """
+        if verbose:
+            print("Collecting calibration data...")
+        
+        scores_by_phoneme, labels_by_phoneme = self.collect_calibration_data(pairs)
+        
+        if verbose:
+            total_samples = sum(len(v) for v in scores_by_phoneme.values())
+            print(f"  Total samples: {total_samples}")
+            print("Fitting Platt calibration...")
+        
+        self.calibrator.fit(scores_by_phoneme, labels_by_phoneme)
+        
+        if verbose:
+            print("  Calibration fitted successfully")
     
     def set_vote_strategy(self, strategy: str, temperature: float = None, margin: float = None):
         """Change voting strategy at runtime."""
@@ -473,6 +674,53 @@ class FlySwarm:
         
         return phonemes
     
+    def predict_word_beam(
+        self,
+        word: str,
+        n_phonemes: int,
+        lm: 'PhonemeNGramLM',
+        beam_width: int = 5,
+        lm_weight: float = 0.3,
+        top_k: int = 5,
+        vote_strategy: Optional[str] = None,
+        context_size: int = None,
+    ) -> List[str]:
+        """
+        Predict phoneme sequence using beam search with LM rescoring.
+        
+        The swarm proposes top-k candidates per slot; beam search finds
+        the best sequence considering both fly scores and LM probability.
+        
+        Args:
+            word: Input word
+            n_phonemes: Number of phonemes to predict
+            lm: PhonemeNGramLM for rescoring
+            beam_width: Number of hypotheses to keep
+            lm_weight: Weight for LM score (vs fly score)
+            top_k: Candidates to consider per slot
+            vote_strategy: Base voting strategy for scores
+            context_size: Letter context size
+        
+        Returns:
+            Best phoneme sequence
+        """
+        from .phoneme_lm import BeamSearchDecoder
+        
+        decoder = BeamSearchDecoder(
+            swarm=self,
+            lm=lm,
+            beam_width=beam_width,
+            lm_weight=lm_weight,
+            top_k=top_k,
+        )
+        
+        phonemes, _ = decoder.decode(
+            word, n_phonemes, 
+            context_size=context_size,
+            vote_strategy=vote_strategy,
+        )
+        return phonemes
+    
     def train_step(self, letter_context: str, correct_phoneme: str) -> Tuple[bool, str]:
         """
         Train all specialists on one example.
@@ -504,7 +752,7 @@ class FlySwarm:
             specialist.reset_stats()
     
     def save(self, path: str):
-        """Save swarm to directory or npz file."""
+        """Save swarm to directory or npz file, including calibration if fitted."""
         path = Path(path)
         
         # Collect all specialist weights
@@ -519,14 +767,17 @@ class FlySwarm:
             pn_kc_weights=self.shared.pn_kc_weights,
             # Config
             config=json.dumps(self.config.to_dict()),
+            # Calibration parameters
+            calibration=json.dumps(self.calibrator.to_dict()),
             # All specialist weights
             **specialist_weights,
         )
-        print(f"Swarm saved to {path}")
+        cal_status = "with calibration" if self.calibrator.is_fitted else "uncalibrated"
+        print(f"Swarm saved to {path} ({cal_status})")
     
     @classmethod
     def load(cls, path: str) -> 'FlySwarm':
-        """Load swarm from file."""
+        """Load swarm from file, including calibration if present."""
         path = Path(path)
         data = np.load(path, allow_pickle=True)
         
@@ -543,7 +794,16 @@ class FlySwarm:
             if key in data:
                 swarm.specialists[phoneme].kc_mbon_weights = data[key]
         
-        print(f"Swarm loaded from {path} ({len(swarm.specialists)} specialists)")
+        # Load calibration if present
+        if 'calibration' in data:
+            try:
+                cal_dict = json.loads(str(data['calibration']))
+                swarm.calibrator = PlattCalibrator.from_dict(cal_dict)
+            except Exception:
+                pass  # Use default uncalibrated
+        
+        cal_status = "calibrated" if swarm.calibrator.is_fitted else "uncalibrated"
+        print(f"Swarm loaded from {path} ({len(swarm.specialists)} specialists, {cal_status})")
         return swarm
 
 
@@ -551,15 +811,13 @@ def get_demo_phonemes() -> List[str]:
     """
     Get phonemes needed for demo vocabulary.
     
-    These are the phonemes that appear in the key demo words:
-    cat, dog, mushroom, hatsune, australia, kenyon, chaos, connectome
+    Uses the actual demo words from get_demo_words() to ensure coverage
+    for evaluation. This includes: cat, bat, dog, go, no, hi, bye, yes, me, you
     """
-    from .lexicon import get_phonemes
+    from .lexicon import get_phonemes, get_demo_words
     
-    demo_words = [
-        'cat', 'dog', 'mushroom', 'hatsune', 'australia', 
-        'kenyon', 'chaos', 'connectome'
-    ]
+    # Use actual demo words to ensure coverage for evaluation
+    demo_words = get_demo_words()
     
     needed = set()
     for word in demo_words:

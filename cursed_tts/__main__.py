@@ -201,12 +201,66 @@ def cmd_eval(args):
     # Check for swarm mode
     if getattr(args, 'swarm', False):
         from .specialist_fly import FlySwarm
-        from .train_swarm import evaluate_swarm, compare_to_baseline
+        from .train_swarm import evaluate_swarm_words
+        from .lexicon import get_lexicon, get_demo_words
+        import numpy as np
         
         swarm_model = getattr(args, 'swarm_model', 'model_swarm.npz')
         swarm = FlySwarm.load(swarm_model)
-        evaluate_swarm(swarm, verbose=True)
-        compare_to_baseline(swarm, args.model, verbose=True)
+        
+        lexicon = get_lexicon()
+        demo_words = get_demo_words()
+        demo_in_lex = [w for w in demo_words if w in lexicon]
+        
+        # Build held-out test sample
+        all_words = list(lexicon.keys())
+        rng = np.random.default_rng(123)
+        test_sample = [
+            w for w in rng.choice(all_words, size=500, replace=False)
+            if w not in demo_words and w.isalpha() and 2 <= len(w) <= 12
+        ][:200]
+        
+        # Check for beam search / LM
+        beam_width = getattr(args, 'beam', 0)
+        lm_weight = getattr(args, 'lm_weight', 0.3)
+        vote_strategy = getattr(args, 'vote', None)
+        
+        lm = None
+        if beam_width > 0:
+            from .phoneme_lm import build_phoneme_lm
+            print(f"\nBuilding phoneme LM for beam search (beam={beam_width}, lm_weight={lm_weight})...")
+            lm = build_phoneme_lm(n=3, max_words=20000, verbose=True)
+        
+        print("\n" + "="*60)
+        print("SWARM EVALUATION")
+        if lm:
+            print(f"  Mode: beam search (beam={beam_width}, lm_weight={lm_weight})")
+        else:
+            print(f"  Mode: greedy ({vote_strategy or swarm.config.vote_strategy} voting)")
+        print("="*60)
+        
+        # Demo evaluation
+        print("\n--- Demo Words ---\n")
+        print(f"{'Word':15} {'Expected':25} {'Predicted':25}")
+        print("-" * 70)
+        
+        demo_phoneme, demo_word, demo_details = evaluate_swarm_words(
+            swarm, demo_in_lex, lexicon, verbose=True,
+            lm=lm, beam_width=beam_width, lm_weight=lm_weight,
+            vote_strategy=vote_strategy,
+        )
+        
+        print(f"\nDemo: phoneme={100*demo_phoneme:.1f}%, word={100*demo_word:.1f}%")
+        
+        # Held-out evaluation
+        test_phoneme, test_word, _ = evaluate_swarm_words(
+            swarm, test_sample, lexicon, verbose=False,
+            lm=lm, beam_width=beam_width, lm_weight=lm_weight,
+            vote_strategy=vote_strategy,
+        )
+        
+        print(f"Held-out ({len(test_sample)} words): phoneme={100*test_phoneme:.1f}%, word={100*test_word:.1f}%")
+        print("="*60)
         return
     
     from .mushroom_body import MushroomBody
@@ -377,8 +431,8 @@ Examples:
                                      help='Random seed (default: 42)')
     # Voting/arbitration options
     train_swarm_parser.add_argument('--vote', type=str, default='softmax',
-                                     choices=['argmax', 'softmax', 'margin'],
-                                     help='Voting strategy: argmax, softmax, margin (default: softmax)')
+                                     choices=['argmax', 'softmax', 'margin', 'calibrated'],
+                                     help='Voting strategy: argmax, softmax, margin, calibrated (default: softmax)')
     train_swarm_parser.add_argument('--vote-temp', type=float, default=0.5,
                                      help='Softmax temperature (default: 0.5, lower=sharper)')
     train_swarm_parser.add_argument('--vote-margin', type=float, default=0.1,
@@ -404,7 +458,7 @@ Examples:
     speak_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                               help='Swarm model path (default: model_swarm.npz)')
     speak_parser.add_argument('--vote', type=str, default=None,
-                              choices=['argmax', 'softmax', 'margin'],
+                              choices=['argmax', 'softmax', 'margin', 'calibrated'],
                               help='Override swarm voting strategy')
     # Legacy flags
     speak_parser.add_argument('--stage2', action='store_true',
@@ -430,7 +484,7 @@ Examples:
     speak_all_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                                    help='Swarm model path')
     speak_all_parser.add_argument('--vote', type=str, default=None,
-                                   choices=['argmax', 'softmax', 'margin'],
+                                   choices=['argmax', 'softmax', 'margin', 'calibrated'],
                                    help='Override swarm voting strategy')
     # Legacy flags
     speak_all_parser.add_argument('--stage2', action='store_true',
@@ -448,6 +502,14 @@ Examples:
                              help='Evaluate swarm model instead of single MB')
     eval_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                              help='Swarm model path (default: model_swarm.npz)')
+    eval_parser.add_argument('--vote', type=str, default=None,
+                             choices=['argmax', 'softmax', 'margin', 'calibrated'],
+                             help='Voting strategy for swarm evaluation')
+    # Beam search / LM options
+    eval_parser.add_argument('--beam', type=int, default=0,
+                             help='Beam width for LM-rescored search (0=greedy, no LM)')
+    eval_parser.add_argument('--lm-weight', type=float, default=0.3,
+                             help='Weight for phoneme LM score (default: 0.3)')
     
     # Info command
     subparsers.add_parser('info', help='Show phoneme/system info')
