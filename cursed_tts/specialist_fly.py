@@ -483,8 +483,9 @@ class FlySwarm:
         """
         Margin voting: require clear margin between best and second-best.
         
-        If margin is insufficient, returns second-best instead of falling
-        back to softmax (which was equivalent to argmax anyway).
+        If margin is sufficient, returns best with full confidence.
+        If margin is insufficient, does softmax among top-k candidates
+        to get a more nuanced decision when specialists disagree.
         """
         sorted_items = sorted(scores.items(), key=lambda x: -x[1])
         
@@ -500,9 +501,21 @@ class FlySwarm:
         if margin >= self.config.vote_margin:
             return best_phone, best_score
         
-        # If margin insufficient, return second-best to penalize overconfidence
-        # This breaks ties in favor of alternatives when uncertain
-        return second_phone, second_score
+        # If margin insufficient, apply softmax to top-k candidates only
+        # This gives more weight to close alternatives rather than penalizing
+        top_k = min(5, len(sorted_items))
+        top_phones = [p for p, s in sorted_items[:top_k]]
+        top_scores = np.array([s for p, s in sorted_items[:top_k]])
+        
+        # Softmax with temperature
+        temp = max(self.config.vote_temperature, 0.01)
+        scaled = top_scores / temp
+        scaled = scaled - scaled.max()
+        exp_scores = np.exp(scaled)
+        probs = exp_scores / exp_scores.sum()
+        
+        winner_idx = np.argmax(probs)
+        return top_phones[winner_idx], float(probs[winner_idx])
     
     def _vote_calibrated(self, scores: Dict[str, float]) -> Tuple[str, float]:
         """
@@ -659,6 +672,53 @@ class FlySwarm:
             phoneme, _, _ = self.predict(letter_context, vote_strategy=vote_strategy)
             phonemes.append(phoneme)
         
+        return phonemes
+    
+    def predict_word_beam(
+        self,
+        word: str,
+        n_phonemes: int,
+        lm: 'PhonemeNGramLM',
+        beam_width: int = 5,
+        lm_weight: float = 0.3,
+        top_k: int = 5,
+        vote_strategy: Optional[str] = None,
+        context_size: int = None,
+    ) -> List[str]:
+        """
+        Predict phoneme sequence using beam search with LM rescoring.
+        
+        The swarm proposes top-k candidates per slot; beam search finds
+        the best sequence considering both fly scores and LM probability.
+        
+        Args:
+            word: Input word
+            n_phonemes: Number of phonemes to predict
+            lm: PhonemeNGramLM for rescoring
+            beam_width: Number of hypotheses to keep
+            lm_weight: Weight for LM score (vs fly score)
+            top_k: Candidates to consider per slot
+            vote_strategy: Base voting strategy for scores
+            context_size: Letter context size
+        
+        Returns:
+            Best phoneme sequence
+        """
+        from .phoneme_lm import BeamSearchDecoder
+        
+        decoder = BeamSearchDecoder(
+            swarm=self,
+            lm=lm,
+            beam_width=beam_width,
+            lm_weight=lm_weight,
+            top_k=top_k,
+        )
+        
+        phonemes, _ = decoder.decode(
+            word, n_phonemes, 
+            context_size=context_size,
+            vote_strategy=vote_strategy,
+        )
         return phonemes
     
     def train_step(self, letter_context: str, correct_phoneme: str) -> Tuple[bool, str]:

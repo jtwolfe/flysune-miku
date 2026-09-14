@@ -96,9 +96,25 @@ def evaluate_swarm_words(
     words: List[str],
     lexicon: Dict[str, List[str]],
     verbose: bool = False,
+    lm: Optional['PhonemeNGramLM'] = None,
+    beam_width: int = 5,
+    lm_weight: float = 0.3,
+    top_k: int = 5,
+    vote_strategy: Optional[str] = None,
 ) -> Tuple[float, float, List[Dict]]:
     """
     Evaluate swarm on whole words.
+    
+    Args:
+        swarm: FlySwarm instance
+        words: Words to evaluate
+        lexicon: Word to phoneme mapping
+        verbose: Print details
+        lm: Optional PhonemeNGramLM for beam search
+        beam_width: Beam width (if using LM)
+        lm_weight: LM weight (if using LM)
+        top_k: Top-k candidates per slot (if using LM)
+        vote_strategy: Voting strategy for base scores
     
     Returns:
         phoneme_accuracy
@@ -117,8 +133,18 @@ def evaluate_swarm_words(
         ref_phonemes = [strip_stress(p) for p in lexicon[word]]
         n_phonemes = len(ref_phonemes)
         
-        # Predict
-        pred_phonemes = swarm.predict_word(word, n_phonemes)
+        # Predict - use beam search if LM provided
+        if lm is not None:
+            pred_phonemes = swarm.predict_word_beam(
+                word, n_phonemes,
+                lm=lm,
+                beam_width=beam_width,
+                lm_weight=lm_weight,
+                top_k=top_k,
+                vote_strategy=vote_strategy,
+            )
+        else:
+            pred_phonemes = swarm.predict_word(word, n_phonemes, vote_strategy=vote_strategy)
         pred_phonemes = [strip_stress(p) for p in pred_phonemes]
         
         # Score
