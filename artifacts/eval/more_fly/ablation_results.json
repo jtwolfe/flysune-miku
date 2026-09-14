@@ -1,0 +1,72 @@
+[
+  {
+    "config": "baseline",
+    "demo_phoneme": 0.9583333333333334,
+    "demo_word": 0.9,
+    "test_phoneme": 0.650390625,
+    "test_word": 0.132,
+    "me": "M IY",
+    "yes": "Y EH Z",
+    "hi": "HH AY",
+    "IY_EH": 0.05838902567710166,
+    "AE_AA": 0.1388888888888889,
+    "wiring": "random",
+    "best_epoch": 4
+  },
+  {
+    "config": "+A_cues",
+    "demo_phoneme": 0.9583333333333334,
+    "demo_word": 0.9,
+    "test_phoneme": 0.6171875,
+    "test_word": 0.108,
+    "me": "M IY",
+    "yes": "Y EH Z",
+    "hi": "HH AY",
+    "IY_EH": 0.055575096728807595,
+    "AE_AA": 0.0481859410430839,
+    "wiring": "random",
+    "best_epoch": 5
+  },
+  {
+    "config": "+A+B_data",
+    "demo_phoneme": 0.9583333333333334,
+    "demo_word": 0.9,
+    "test_phoneme": 0.6282552083333334,
+    "test_word": 0.112,
+    "me": "M IY",
+    "yes": "Y EH S",
+    "hi": "HH AY",
+    "IY_EH": 0.09285965529370384,
+    "AE_AA": 0.09410430839002268,
+    "wiring": "random",
+    "best_epoch": 4
+  },
+  {
+    "config": "+A+B+C_wiring",
+    "demo_phoneme": 0.9583333333333334,
+    "demo_word": 0.9,
+    "test_phoneme": 0.615234375,
+    "test_word": 0.092,
+    "me": "M IY",
+    "yes": "Y EH S",
+    "hi": "HH AY",
+    "IY_EH": 0.06260991909954274,
+    "AE_AA": 0.16099773242630386,
+    "wiring": "hemibrain",
+    "best_epoch": 4
+  },
+  {
+    "config": "+A+B+C+D_full",
+    "demo_phoneme": 0.9583333333333334,
+    "demo_word": 0.9,
+    "test_phoneme": 0.615234375,
+    "test_word": 0.092,
+    "me": "M IY",
+    "yes": "Y EH S",
+    "hi": "HH AY",
+    "IY_EH": 0.06260991909954274,
+    "AE_AA": 0.16099773242630386,
+    "wiring": "hemibrain",
+    "best_epoch": 4
+  }
+]

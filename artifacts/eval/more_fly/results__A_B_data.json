@@ -1,0 +1,14 @@
+{
+  "config": "+A+B_data",
+  "demo_phoneme": 0.9583333333333334,
+  "demo_word": 0.9,
+  "test_phoneme": 0.6282552083333334,
+  "test_word": 0.112,
+  "me": "M IY",
+  "yes": "Y EH S",
+  "hi": "HH AY",
+  "IY_EH": 0.09285965529370384,
+  "AE_AA": 0.09410430839002268,
+  "wiring": "random",
+  "best_epoch": 4
+}
