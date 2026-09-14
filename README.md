@@ -295,6 +295,49 @@ Output files:
 
 **Recommendation**: Use `model_swarm_best.npz` for inference after long training runs.
 
+### Confusion Mining / Hard Negatives (Step 4)
+
+Train with attention to confusable phoneme pairs — learn more when wrong on hard pairs:
+
+```bash
+# Train with confusion mining (mine confusions after epoch 2)
+python -m cursed_tts train-swarm --confusion-mine --epochs 6 --patience 3
+
+# With confusion report
+python -m cursed_tts train-swarm --confusion-mine --confusion-report confusion.txt
+
+# Use pre-defined known hard pairs without mining (IY↔EH, AE↔AA, etc.)
+python -m cursed_tts train-swarm --use-known-hard-pairs
+```
+
+**How it works**:
+
+1. **Mining phase** (after epoch N): Build confusion matrix on held-out data to identify frequently confused phoneme pairs (e.g., AA↔AH, IY↔IH, Z↔S)
+2. **Target-only oversampling**: Augment training data by duplicating samples where `target=T` for a confusion `(T→P)` — NOT when target is P (v2 fix to avoid flooding with common phonemes)
+3. **Capped at 15%**: Duplicates don't exceed 15% of corpus to avoid overfitting
+4. **Position encoding**: 8-dim phoneme slot position features help distinguish slots in short words like "me"
+
+**Biology analogy**: Selective attention to errors. When a fly brain repeatedly confuses two similar odors, more learning happens on those specific cases.
+
+**Results** (250-word held-out evaluation):
+
+| Metric | Baseline | +Mining | Delta |
+|--------|----------|---------|-------|
+| Test pair accuracy | 64.9% | 65.8% | **+0.9%** |
+| Held-out phoneme | 65.8% | 66.3% | **+0.5%** |
+| `me` correct? | NO (M EH) | **YES (M IY)** | ✓ |
+
+**Confusion rate improvements**:
+
+| Pair | Baseline | +Mining | Note |
+|------|----------|---------|------|
+| IY→EH | 6.6% | 5.1% | "me" problem fixed |
+| AE→AA | 9.3% | **2.5%** | -6.7% big win! |
+| IY→IH | 10.8% | 7.9% | -2.9% |
+| AE→AH | 22.3% | 19.9% | -2.4% |
+
+**Hard fraction**: 45.1% of samples marked hard (capped at 15% oversample)
+
 ### Performance
 
 The swarm is an experiment, not an improvement. Expected results:

@@ -21,6 +21,14 @@ class AlignedPair:
     letter_context: str  # Window of letters around position
     phoneme_idx: int     # Which phoneme this maps to
     phoneme: str         # Target phoneme symbol
+    n_phonemes: int = 1  # Total phonemes in word (for position encoding)
+    
+    @property
+    def phoneme_pos(self) -> float:
+        """Normalized phoneme position [0, 1] for position encoding."""
+        if self.n_phonemes <= 1:
+            return 0.5
+        return self.phoneme_idx / (self.n_phonemes - 1)
     
     def __repr__(self):
         return f"'{self.letter_context}' → {self.phoneme}"
@@ -78,6 +86,7 @@ def align_word(word: str, phonemes: List[str], context_size: int = 3) -> List[Al
             letter_context=letter_context,
             phoneme_idx=p_idx,
             phoneme=phoneme,
+            n_phonemes=n_phonemes,
         ))
     
     return pairs

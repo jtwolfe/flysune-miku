@@ -338,6 +338,14 @@ def cmd_train_swarm(args):
     patience = getattr(args, 'patience', 0)
     save_best = not getattr(args, 'no_save_best', False)
     
+    # Confusion mining parameters
+    confusion_mine = getattr(args, 'confusion_mine', False)
+    confusion_mine_epoch = getattr(args, 'confusion_mine_epoch', 2)
+    hard_negative_weight = getattr(args, 'hard_negative_weight', 2.0)
+    oversample_factor = getattr(args, 'oversample_factor', 1.5)
+    confusion_report_path = getattr(args, 'confusion_report', None)
+    use_known_hard_pairs = getattr(args, 'use_known_hard_pairs', False)
+    
     swarm = train_and_save_swarm(
         output_path=args.output,
         phonemes=phonemes,
@@ -349,6 +357,12 @@ def cmd_train_swarm(args):
         vote_margin=vote_margin,
         early_stop_patience=patience,
         save_best=save_best,
+        confusion_mine=confusion_mine,
+        confusion_mine_epoch=confusion_mine_epoch,
+        hard_negative_weight=hard_negative_weight,
+        oversample_factor=oversample_factor,
+        confusion_report_path=confusion_report_path,
+        use_known_hard_pairs=use_known_hard_pairs,
         verbose=True,
     )
     print(f"\nSwarm saved to: {args.output}")
@@ -442,6 +456,19 @@ Examples:
                                      help='Early stop if demo_phoneme stagnates for N epochs (0=disabled)')
     train_swarm_parser.add_argument('--no-save-best', action='store_true',
                                      help='Disable saving best checkpoint by demo_phoneme')
+    # Confusion mining / hard negatives
+    train_swarm_parser.add_argument('--confusion-mine', action='store_true',
+                                     help='Enable confusion mining (mine confusions and oversample hard pairs)')
+    train_swarm_parser.add_argument('--confusion-mine-epoch', type=int, default=2,
+                                     help='Epoch after which to mine confusions (default: 2)')
+    train_swarm_parser.add_argument('--hard-negative-weight', type=float, default=2.0,
+                                     help='Weight multiplier for hard negative pairs (default: 2.0)')
+    train_swarm_parser.add_argument('--oversample-factor', type=float, default=1.5,
+                                     help='Oversample factor for hard pairs (default: 1.5 = 50%% more)')
+    train_swarm_parser.add_argument('--confusion-report', type=str, default=None,
+                                     help='Path to save confusion report (default: <output>_confusion.txt)')
+    train_swarm_parser.add_argument('--use-known-hard-pairs', action='store_true',
+                                     help='Use pre-defined known hard pairs (IY/EH, AE/AA, etc.) without mining')
     
     # Speak command
     speak_parser = subparsers.add_parser('speak', help='Speak a word')

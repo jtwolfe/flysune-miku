@@ -9,6 +9,11 @@ For specialist P:
 - Negative examples: contexts aligned to other phonemes
 
 The dopamine-when-wrong learning rule is the same: only update when wrong.
+
+Confusion mining (Step 4):
+- Mine confusions from predictions to identify hard phoneme pairs
+- Oversample hard pairs during training (learn more when wrong on hard cases)
+- Stay dopamine/error-driven - this is selective attention to frequent errors
 """
 
 import numpy as np
@@ -22,6 +27,10 @@ from .specialist_fly import (
 from .alignment import create_g2p_training_data, AlignedPair
 from .phonemes import PHONEME_LIST, strip_stress, NUM_PHONEMES
 from .lexicon import get_phonemes, get_demo_words, get_lexicon
+from .confusion_mining import (
+    ConfusionMiner, ConfusionMatrix, build_confusion_matrix_from_swarm,
+    get_known_hard_targets, KNOWN_HARD_PAIRS,
+)
 
 
 def train_swarm_epoch(
@@ -45,7 +54,12 @@ def train_swarm_epoch(
     
     for i, idx in enumerate(indices):
         pair = train_pairs[idx]
-        is_correct, _ = swarm.train_step(pair.letter_context, pair.phoneme)
+        # Pass phoneme position for short-word disambiguation
+        is_correct, _ = swarm.train_step(
+            pair.letter_context, pair.phoneme,
+            phoneme_pos=pair.phoneme_pos,
+            n_phonemes=pair.n_phonemes,
+        )
         
         if is_correct:
             correct += 1
@@ -76,7 +90,11 @@ def evaluate_swarm_pairs(
     
     for pair in pairs:
         target = strip_stress(pair.phoneme)
-        predicted, _, _ = swarm.predict(pair.letter_context)
+        predicted, _, _ = swarm.predict(
+            pair.letter_context,
+            phoneme_pos=pair.phoneme_pos,
+            n_phonemes=pair.n_phonemes,
+        )
         
         is_correct = (predicted == target)
         if is_correct:
@@ -205,6 +223,12 @@ def train_swarm(
     save_best: bool = True,
     best_path: Optional[str] = None,
     fit_calibration: bool = True,
+    confusion_mine: bool = False,
+    confusion_mine_epoch: int = 2,
+    hard_negative_weight: float = 2.0,
+    oversample_factor: float = 1.5,
+    confusion_report_path: Optional[str] = None,
+    use_known_hard_pairs: bool = False,
     verbose: bool = True,
 ) -> Tuple[FlySwarm, Dict]:
     """
@@ -223,6 +247,12 @@ def train_swarm(
         save_best: Save best checkpoint by demo_phoneme accuracy
         best_path: Path for best checkpoint (default: model_swarm_best.npz)
         fit_calibration: Fit Platt calibration on test pairs after training
+        confusion_mine: Enable confusion mining (mine after epoch N, then oversample)
+        confusion_mine_epoch: Epoch after which to mine confusions (default: 2)
+        hard_negative_weight: Weight for hard negative pairs (default: 2.0)
+        oversample_factor: How much to oversample hard pairs (default: 1.5 = 50% more)
+        confusion_report_path: Path to save confusion report (default: None)
+        use_known_hard_pairs: Use pre-defined known hard pairs without mining
         verbose: Print progress
     
     Returns:
@@ -260,6 +290,25 @@ def train_swarm(
         print(f"Training pairs (filtered): {len(train_pairs_filtered)}/{len(train_pairs)}")
         print(f"Test pairs (filtered): {len(test_pairs_filtered)}/{len(test_pairs)}")
     
+    # Initialize confusion miner if enabled
+    confusion_miner: Optional[ConfusionMiner] = None
+    if confusion_mine or use_known_hard_pairs:
+        confusion_miner = ConfusionMiner(
+            phonemes=list(phoneme_set),
+            max_oversample_ratio=0.15,  # Cap at 15% of corpus
+            min_confusion_rate=0.05,    # Only include >5% confusion rate
+        )
+        
+        # Pre-populate with known hard pairs if requested
+        if use_known_hard_pairs:
+            if verbose:
+                print(f"Using {len(KNOWN_HARD_PAIRS)} known hard pairs for oversampling")
+            confusion_miner.target_to_confused = get_known_hard_targets()
+    
+    # Track original training pairs for mining
+    original_train_pairs = train_pairs_filtered.copy()
+    confusion_mined = False  # Track if we've already mined
+    
     # Create swarm with voting config
     spec_config = SpecialistConfig(context_size=context_size, seed=seed)
     swarm_config = SwarmConfig(
@@ -289,6 +338,12 @@ def train_swarm(
             print(f"Early stop patience: {early_stop_patience} epochs")
         if save_best:
             print(f"Best checkpoint: enabled")
+        if confusion_mine:
+            print(f"Confusion mining: enabled (after epoch {confusion_mine_epoch}, "
+                  f"weight={hard_negative_weight}, oversample={oversample_factor}x)")
+        elif use_known_hard_pairs:
+            print(f"Known hard pairs: enabled (weight={hard_negative_weight}, "
+                  f"oversample={oversample_factor}x)")
         print(f"{'='*60}\n")
     
     history = {
@@ -299,6 +354,9 @@ def train_swarm(
         'specialist_accs': [],
         'best_epoch': None,
         'best_demo_phoneme': 0.0,
+        'confusion_mined': False,
+        'confusion_mine_epoch': None,
+        'hard_pairs_count': 0,
     }
     
     # Best checkpoint tracking
@@ -311,6 +369,48 @@ def train_swarm(
     
     for epoch in range(1, n_epochs + 1):
         epoch_start = time.time()
+        
+        # Confusion mining: mine after specified epoch, augment for remaining
+        if confusion_mine and epoch == confusion_mine_epoch + 1 and not confusion_mined:
+            if verbose:
+                print(f"\n{'='*40}")
+                print(f"CONFUSION MINING (after epoch {confusion_mine_epoch})")
+                print(f"{'='*40}")
+            
+            # Mine confusions from test pairs (held-out data)
+            confusion_miner.mine_confusions(
+                swarm, test_pairs_filtered, vote_strategy=vote_strategy, verbose=verbose
+            )
+            
+            # Check hard fraction BEFORE augmentation
+            hard_frac_before = confusion_miner.get_hard_fraction(original_train_pairs)
+            if verbose:
+                print(f"  Hard fraction in train: {100*hard_frac_before:.1f}%")
+            
+            # Augment training data with TRUE hard negatives (capped at 15%)
+            train_pairs_filtered = confusion_miner.augment_training_data(
+                original_train_pairs, swarm=swarm, rng=rng, verbose=verbose
+            )
+            
+            # Save confusion report if requested
+            if confusion_report_path:
+                confusion_miner.save_report(confusion_report_path)
+            
+            confusion_mined = True
+            
+            if verbose:
+                print(f"{'='*40}\n")
+        
+        # Apply known hard pair oversampling if enabled (on first epoch)
+        if use_known_hard_pairs and epoch == 1 and confusion_miner and not confusion_mined:
+            if verbose:
+                print("Applying known hard pair oversampling...")
+                hard_frac = confusion_miner.get_hard_fraction(original_train_pairs)
+                print(f"  Hard fraction in train: {100*hard_frac:.1f}%")
+            train_pairs_filtered = confusion_miner.augment_training_data(
+                original_train_pairs, rng=rng, verbose=verbose
+            )
+            confusion_mined = True
         
         # Train
         train_acc, spec_accs = train_swarm_epoch(
@@ -366,6 +466,34 @@ def train_swarm(
     # Record best epoch info
     history['best_epoch'] = best_epoch
     history['best_demo_phoneme'] = best_demo_phoneme
+    
+    # Record confusion mining info
+    if confusion_mined and confusion_miner:
+        history['confusion_mined'] = True
+        history['confusion_mine_epoch'] = confusion_mine_epoch if confusion_mine else 0
+        history['hard_pairs_count'] = len(confusion_miner.target_to_confused)
+        if confusion_miner.last_stats:
+            history['hard_fraction'] = confusion_miner.last_stats.get('hard_fraction', 0)
+            history['oversample_ratio'] = confusion_miner.last_stats.get('oversample_ratio', 0)
+        
+        # Final confusion report
+        if confusion_report_path and confusion_miner.confusion_matrix:
+            # Build final confusion matrix on test pairs
+            if verbose:
+                print("\n" + "-" * 40)
+                print("FINAL CONFUSION ANALYSIS")
+                print("-" * 40)
+            final_cm = build_confusion_matrix_from_swarm(
+                swarm, test_pairs_filtered, vote_strategy=vote_strategy, verbose=verbose
+            )
+            # Append to report
+            with open(confusion_report_path, 'a') as f:
+                f.write("\n\n" + "=" * 60 + "\n")
+                f.write("POST-TRAINING CONFUSION ANALYSIS\n")
+                f.write("=" * 60 + "\n")
+                f.write(final_cm.print_report(top_k=20, min_count=3))
+            if verbose:
+                print(f"Updated confusion report at {confusion_report_path}")
     
     # Restore best weights if we have them and training continued past best
     if best_weights is not None and best_epoch < n_epochs:
@@ -548,6 +676,12 @@ def train_and_save_swarm(
     vote_margin: float = 0.1,
     early_stop_patience: int = 0,
     save_best: bool = True,
+    confusion_mine: bool = False,
+    confusion_mine_epoch: int = 2,
+    hard_negative_weight: float = 2.0,
+    oversample_factor: float = 1.5,
+    confusion_report_path: Optional[str] = None,
+    use_known_hard_pairs: bool = False,
     verbose: bool = True,
 ) -> FlySwarm:
     """Train and save a fly swarm."""
@@ -555,6 +689,10 @@ def train_and_save_swarm(
     best_path = output_path.replace('.npz', '_best.npz')
     if best_path == output_path:
         best_path = output_path + '_best'
+    
+    # Default confusion report path
+    if confusion_mine and confusion_report_path is None:
+        confusion_report_path = output_path.replace('.npz', '_confusion.txt')
     
     swarm, history = train_swarm(
         phonemes=phonemes,
@@ -567,6 +705,12 @@ def train_and_save_swarm(
         early_stop_patience=early_stop_patience,
         save_best=save_best,
         best_path=best_path,
+        confusion_mine=confusion_mine,
+        confusion_mine_epoch=confusion_mine_epoch,
+        hard_negative_weight=hard_negative_weight,
+        oversample_factor=oversample_factor,
+        confusion_report_path=confusion_report_path,
+        use_known_hard_pairs=use_known_hard_pairs,
         verbose=verbose,
     )
     
@@ -578,6 +722,13 @@ def train_and_save_swarm(
         if history.get('best_epoch'):
             print(f"\n★ Best epoch: {history['best_epoch']} "
                   f"(demo_phoneme={100*history['best_demo_phoneme']:.1f}%)")
+        
+        # Print confusion mining info
+        if history.get('confusion_mined'):
+            print(f"★ Confusion mining: {history['hard_pairs_count']} hard pair entries, "
+                  f"mined after epoch {history.get('confusion_mine_epoch', 'N/A')}")
+            if confusion_report_path:
+                print(f"★ Confusion report saved to: {confusion_report_path}")
     
     swarm.save(output_path)
     return swarm
