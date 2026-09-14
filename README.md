@@ -407,7 +407,19 @@ The result is a "choir of flies" effect where different phonemes are literally s
 
 *"Upgrade from mushroom-shaped to mushroom-wired"*
 
-The MORE FLY module (`cursed_tts/more_fly.py`) implements biologically-faithful enhancements:
+The MORE FLY module (`cursed_tts/more_fly.py`) implements biologically-faithful enhancements.
+
+### Recommended Default: `+A+B_data` (Random Wiring + Cues + Curriculum)
+
+```bash
+# Train with recommended config (now the default)
+python -m cursed_tts train-more-fly --epochs 8
+```
+
+This uses:
+- **Stage A cues**: Previous-phone, focus features, enhanced position encoding
+- **Stage B curriculum**: Hard-word oversampling (IY↔EH, AE↔AA, IY↔UW)
+- **Random wiring**: Simpler and matches or exceeds hemibrain on held-out accuracy
 
 ### Stage A: Richer Cues
 
@@ -415,32 +427,32 @@ The MORE FLY module (`cursed_tts/more_fly.py`) implements biologically-faithful 
 - **Focus features**: Help short words like "me" maintain distinct slot encodings
 - **Position encoding**: Enhanced sinusoidal + discrete slot indicators
 
-```bash
-# Train with Stage A cues only
-python -m cursed_tts train-more-fly --config +A_cues --epochs 8
-```
-
 ### Stage B: Fuller Data
 
 - **Full CMUdict support**: `--words 0` uses all ~117k words
-- **Hard-word curriculum**: Fixed 15% oversample of known hard pairs (IY↔EH, AE↔AA, etc.)
+- **Hard-word curriculum**: Fixed 15% oversample of known hard pairs (IY↔EH, AE↔AA, IY↔UW)
 - **Fixed seeds**: Reproducible splits documented in training
 
-### Stage C: Real Wiring
+### Stage C: Real Wiring (Experimental)
 
-Uses connectivity statistics from the hemibrain connectome (Scheffer et al. 2020):
+⚠️ **Experimental**: Real hemibrain wiring does not outperform random wiring on our task.
+Use `+A+B_data` (random) as the recommended default.
 
-- **~180 PN types** → **~2000 KCs** with variable claws (6.8 ± 2.1 PNs per KC)
-- **Sparse coding**: ~5-10% KC activation
+**Now with real hemibrain synapse data** extracted from v1.2 compact adjacencies:
+
+- **428 PNs → 1927 KCs** (real traced neurons)
+- **~5.5 PN inputs per KC** (binarized with ≥3 synapse threshold)
 - **Frozen PN→KC**: Only KC→MBON weights are plastic (fly-faithful)
+- Uses n_pn=400 to preserve connectivity structure
 
 ```bash
-# Train with hemibrain-derived wiring
-python -m cursed_tts train-more-fly --config +A+B+C_wiring --wiring flywire
+# Train with real hemibrain wiring (experimental)
+python -m cursed_tts train-more-fly --config +A+B+C_wiring --wiring flywire --epochs 8
 ```
 
-Fallback: When raw connectome extraction is impractical, uses a deterministic matrix
-generated with published statistics (`artifacts/connectome/hemibrain_pn_kc.npz`).
+**Why random wiring is still better**: The real hemibrain PN→KC connectivity is specialized 
+for olfactory processing, not letter-to-phoneme classification. Random wiring provides more 
+flexibility for our task (95.8% vs 87.5% demo accuracy).
 
 ### Stage D: DAN Teaching
 
@@ -470,19 +482,26 @@ python -m cursed_tts train-more-fly --config +A+B+C+D_full --epochs 8
 **Note on Stage B**: In this 5k-word ablation, "Stage B" refers to the **hard-word curriculum** 
 (IY↔EH, AE↔AA, IY↔UW oversampling), not larger vocabulary. Use `--words 0` for full CMUdict.
 
-**Note on hemibrain wiring**: The hemibrain expansion geometry requires a different KC→MBON 
-initialization (seed=1000) to correctly discriminate IY in short words like "me". Earlier 
-versions with seed=42 produced `me=M UW` due to the expansion geometry favoring UW over IY 
-for that specific context. This is documented as a geometry-dependent effect, not a bug.
+**Note on hemibrain wiring (experimental)**: The hemibrain expansion geometry requires a 
+different KC→MBON initialization (init_seed=1000) to correctly discriminate IY in short words 
+like "me". This is a temporary workaround until real synapse data is available. Hemibrain 
+wiring does not outperform random+data on held-out accuracy in current ablations, so 
+`+A+B_data` with random wiring is the recommended default.
 
 ### CLI Reference
 
 ```bash
-# Train MORE FLY with specific configuration
+# Train MORE FLY with recommended default (+A+B_data, random wiring)
+python -m cursed_tts train-more-fly --epochs 8
+
+# Train with specific configuration
 python -m cursed_tts train-more-fly --config <CONFIG> --wiring <MODE> --epochs N
 
-# Configs: baseline, +A_cues, +A+B_data, +A+B+C_wiring, +A+B+C+D_full
-# Wiring modes: random, flywire, hemibrain
+# Configs: baseline, +A_cues, +A+B_data (default), +A+B+C_wiring, +A+B+C+D_full
+# Wiring modes: random (default), flywire, hemibrain (experimental)
+
+# Example: hemibrain wiring experiment
+python -m cursed_tts train-more-fly --config +A+B+C_wiring --wiring flywire --epochs 8
 
 # Run all ablations
 python -m cursed_tts eval-more-fly --words 5000 --epochs 6

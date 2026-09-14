@@ -631,12 +631,14 @@ Examples:
     train_mf_parser.add_argument('--seed', type=int, default=42,
                                   help='Random seed (default: 42)')
     # Stage selection
-    train_mf_parser.add_argument('--config', type=str, default='+A+B+C+D_full',
+    # Default: +A+B_data (random wiring + cues + curriculum) — best balance of accuracy and simplicity
+    # hemibrain wiring is experimental: requires init_seed tuning and ≤ random+data on held-out in ablations
+    train_mf_parser.add_argument('--config', type=str, default='+A+B_data',
                                   choices=['baseline', '+A_cues', '+A+B_data', '+A+B+C_wiring', '+A+B+C+D_full'],
-                                  help='Ablation config (default: +A+B+C+D_full)')
-    train_mf_parser.add_argument('--wiring', type=str, default='flywire',
+                                  help='Ablation config (default: +A+B_data = cues + curriculum)')
+    train_mf_parser.add_argument('--wiring', type=str, default='random',
                                   choices=['random', 'flywire', 'hemibrain'],
-                                  help='Wiring mode (default: flywire)')
+                                  help='Wiring mode (default: random; flywire/hemibrain are experimental)')
     train_mf_parser.add_argument('--patience', type=int, default=3,
                                   help='Early stop patience (default: 3)')
     

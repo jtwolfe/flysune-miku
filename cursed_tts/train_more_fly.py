@@ -268,17 +268,34 @@ def get_stage_ab_config(seed: int = 42) -> MoreFlyConfig:
     return get_stage_a_config(seed)
 
 
+def get_recommended_config(seed: int = 42) -> MoreFlyConfig:
+    """Get the recommended default configuration.
+    
+    This is Stage A+B with random wiring:
+    - Stage A cues: previous-phone, focus features, enhanced position
+    - Stage B curriculum: hard-word oversampling (IY↔EH, AE↔AA, IY↔UW)
+    - Random wiring: simpler and matches or exceeds hemibrain on held-out
+    
+    Why not hemibrain wiring?
+    - Hemibrain wiring is experimental (requires init_seed tuning)
+    - Current ablations show random+data ≥ hemibrain on held-out accuracy
+    - Stats-matched fallback, not real synapses (extraction impractical)
+    
+    Use +A+B+C_wiring or +A+B+C+D_full with --wiring flywire/hemibrain
+    to experiment with bio-faithful wiring once real synapse data is available.
+    """
+    return get_stage_a_config(seed)
+
+
 def get_stage_abc_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFlyConfig:
     """Get Stage A+B+C configuration (+cues, +data, +wiring).
     
-    Note: For hemibrain wiring, we use init_seed=1000 for KC→MBON initialization
-    because the hemibrain expansion geometry requires different initialization to
-    correctly discriminate IY (e.g., in 'me'). This was found empirically.
+    Note: For real hemibrain wiring, we use n_pn=400 to preserve connectivity structure.
+    Subsampling to 180 PNs loses too much of the real connectivity.
     """
-    # For hemibrain wiring, use init_seed=1000 for better IY discrimination
-    # (the hemibrain expansion geometry creates different KC patterns that need
-    # different KC→MBON initialization to recover short-word accuracy)
-    init_seed = 1000 if wiring_mode in ('flywire', 'hemibrain') else seed
+    # For real hemibrain wiring, use more PNs to preserve structure
+    is_real_wiring = wiring_mode in ('flywire', 'hemibrain')
+    n_pn = 400 if is_real_wiring else 180
     
     return MoreFlyConfig(
         cue_config=CueConfig(
@@ -288,22 +305,23 @@ def get_stage_abc_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFl
         ),
         wiring_config=WiringConfig(
             mode=wiring_mode,             # Stage C: real wiring
-            seed=seed,                    # PN→KC seed (doesn't matter for hemibrain file)
+            n_pn=n_pn,                    # Use 400 PNs for real hemibrain
+            seed=seed,                    # PN→KC seed
         ),
         dan_config=DANConfig(
             enabled=False,
         ),
-        seed=init_seed,                   # KC→MBON init seed
+        seed=seed,                        # KC→MBON init seed
     )
 
 
 def get_full_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFlyConfig:
     """Get full Stage A+B+C+D configuration.
     
-    Note: For hemibrain wiring, we use init_seed=1000 for KC→MBON initialization
-    (same adjustment as Stage C for IY discrimination).
+    Note: For real hemibrain wiring, we use n_pn=400 to preserve connectivity structure.
     """
-    init_seed = 1000 if wiring_mode in ('flywire', 'hemibrain') else seed
+    is_real_wiring = wiring_mode in ('flywire', 'hemibrain')
+    n_pn = 400 if is_real_wiring else 180
     
     return MoreFlyConfig(
         cue_config=CueConfig(
@@ -313,14 +331,15 @@ def get_full_config(seed: int = 42, wiring_mode: str = 'flywire') -> MoreFlyConf
         ),
         wiring_config=WiringConfig(
             mode=wiring_mode,
-            seed=seed,                    # PN→KC seed (doesn't matter for hemibrain file)
+            n_pn=n_pn,                    # Use 400 PNs for real hemibrain
+            seed=seed,                    # PN→KC seed
         ),
         dan_config=DANConfig(
             enabled=True,                 # Stage D: DAN teaching
             compartment_teaching=True,
             word_reward_modulation=False,
         ),
-        seed=init_seed,                   # KC→MBON init seed
+        seed=seed,                        # KC→MBON init seed
     )
 
 

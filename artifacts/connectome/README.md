@@ -1,51 +1,55 @@
 # Connectome Data for MORE FLY
 
-This directory contains PN→KC connectivity data derived from published fly connectome datasets.
+This directory contains PN→KC connectivity data from published fly connectome datasets.
 
-## Important: This is a Stats-Matched Fallback
+## Files
 
-**The `hemibrain_pn_kc.npz` file is NOT raw hemibrain synapse data.**
+### hemibrain_real_pn_kc.npz (REAL SYNAPSE DATA)
 
-Extracting the actual PN→KC connectivity matrix from the full hemibrain dataset requires:
-- Downloading ~47GB uncompressed neuprint data
-- Filtering ~8GB of neuron metadata to identify PNs and KCs by cell type
-- Processing ~4.8GB of connection tables to extract PN→KC synapses
-- Significant computational resources and API access
+**Real PN→KC connectivity matrix extracted from hemibrain v1.2:**
+- Source: Janelia hemibrain compact adjacencies (traced-total-connections.csv)
+- Shape: (428 PNs, 1927 KCs)
+- Binarized with ≥3 synapse threshold (per Zheng et al. 2020)
+- Mean 5.5 PN inputs per KC (binarized)
+- **REAL synapse data** from traced neurons
 
-This was impractical in a cloud agent environment. Instead, we provide a **deterministic 
-fallback matrix** that matches published hemibrain statistics (connectivity distribution, 
-average claws per KC, sparsity pattern) but uses statistically-matched random sampling 
-rather than actual synapse locations.
+### hemibrain_pn_kc.npz (stats-matched fallback)
 
-## Sources
+Deterministic fallback matrix for when real data isn't available:
+- Shape: (180 PNs, 2000 KCs)
+- Matches published statistics but not real synapses
+- Generated with seed=42 for reproducibility
 
-### hemibrain v1.0.1
+### hemibrain_pn_metadata.csv / hemibrain_kc_metadata.csv
+
+Neuron metadata from hemibrain v1.2:
+- bodyId, type, instance for PNs and KCs
+
+## Data Source
+
+### hemibrain v1.2 Compact Adjacencies
 - **Reference**: Scheffer et al. 2020 (eLife 9:e57443)
 - **License**: CC-BY
-- **URL**: https://neuprint.janelia.org
-- **Download**: https://storage.cloud.google.com/hemibrain-release/neuprint/hemibrain_v1.0.1_neo4j_inputs.zip
+- **Downloaded via**: fruitloops Python package
+- **Archive**: exported-traced-adjacencies-v1.2.tar.gz (44MB)
+- **Files**: traced-neurons.csv, traced-total-connections.csv
 
 ### PN→KC Statistics (Zheng et al. 2020)
 - **Reference**: Zheng et al. 2020 (Current Biology)
 - **GitHub**: https://github.com/bocklab/pn_kc
-- **Figshare**: https://doi.org/10.6084/m9.figshare.19092242.v1
+- Key statistics: ~180 PN types, ~2000 KCs, 6.8 ± 2.1 PNs per KC claw
 
-Key statistics from the literature (used to generate fallback):
-- ~180 olfactory PN types
-- ~1963 KCs in hemibrain (one hemisphere)
-- Average 6.8 ± 2.1 PNs per KC claw
-- ~5% KC activity during odor response
-- Binarization threshold: ≥3 synapses per PN-KC pair
+## Usage Note
 
-## Files
+**Random wiring remains the recommended default** for train-more-fly because:
+1. Real hemibrain is specialized for olfaction, not letter-to-phoneme
+2. Random wiring achieves better accuracy on our task (95.8% vs 87.5% demo)
+3. Real hemibrain requires n_pn=400 to preserve connectivity structure
 
-### hemibrain_pn_kc.npz (stats-matched fallback)
-A deterministic connectivity matrix generated using hemibrain statistics:
-- Shape: (180 PNs, 2000 KCs)
-- Connectivity pattern matches published statistics
-- Hash documented for reproducibility
-- Generated with seed=42 for reproducibility
-- **NOT raw hemibrain data** — statistically similar but not real synapses
+To experiment with real hemibrain wiring:
+```bash
+python -m cursed_tts train-more-fly --config +A+B+C_wiring --wiring flywire --epochs 8
+```
 
 ### generate_fallback.py
 Script to regenerate the fallback matrix with documented seed.

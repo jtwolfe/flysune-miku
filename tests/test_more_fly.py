@@ -250,14 +250,14 @@ class TestWiring:
         assert 'sparsity' in metadata
     
     def test_flywire_mode_fallback(self):
-        """Flywire mode should fall back gracefully when data not available."""
+        """Flywire mode should use real data or fall back gracefully."""
         config = WiringConfig(mode='flywire', seed=42, connectome_path=None)
         rng = np.random.default_rng(42)
         
         _, pn_kc, metadata = create_wiring_matrix(config, 500, rng)
         
-        # Should fall back to random_hemibrain_stats
-        assert metadata['source'] in ['random_hemibrain_stats', 'hemibrain']
+        # Should use real hemibrain data or fall back to stats-matched
+        assert metadata['source'] in ['hemibrain_real', 'hemibrain_stats', 'random_hemibrain_stats', 'hemibrain']
         assert pn_kc.shape[1] == config.n_kc
 
 

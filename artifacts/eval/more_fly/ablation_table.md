@@ -11,6 +11,12 @@
 | +A+B+C+D_full | 95.8% | 90.0% | 61.5% | 9.2% | M IY | Y EH S | HH AY | 6.3% | 16.1% |
 
 **Notes:**
+- **Recommended default: `+A+B_data`** (random wiring + cues + curriculum)
 - Stage B = hard-word curriculum (IY↔EH, AE↔AA, IY↔UW oversampling), not larger vocabulary
-- Hemibrain wiring uses init_seed=1000 for KC→MBON (required for correct IY discrimination)
-- Hemibrain file is stats-matched fallback, not raw synapse data
+- Real hemibrain synapse data now available (`hemibrain_real_pn_kc.npz`)
+- Real hemibrain uses n_pn=400 to preserve connectivity structure
+- Random wiring outperforms real hemibrain on this task (95.8% vs 87.5% demo)
+
+**Why random wiring is still better:**
+The real hemibrain PN→KC connectivity is specialized for olfactory processing, not 
+letter-to-phoneme classification. Random wiring provides more flexibility for our task.

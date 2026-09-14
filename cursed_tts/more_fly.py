@@ -230,44 +230,60 @@ class WiringConfig:
 # Hemibrain statistics for PN→KC connectivity
 # Based on Zheng et al. 2020 and Scheffer et al. 2020
 HEMIBRAIN_STATS = {
-    'n_pn_types': 180,              # Approximate number of olfactory PN types
+    'n_pn_types': 180,              # Approximate number of olfactory PN types (stats-matched)
+    'n_pn_real': 428,               # Actual PNs in hemibrain v1.2 traced data
     'n_kc_total': 1963,             # KCs on right hemisphere (hemibrain)
-    'avg_pn_per_kc': 6.8,           # Average PNs per KC claw
+    'n_kc_real': 1927,              # Actual KCs in hemibrain v1.2 traced data
+    'avg_pn_per_kc': 6.8,           # Average PNs per KC claw (literature)
+    'avg_pn_per_kc_real': 5.5,      # Actual from extracted data (binarized ≥3 syn)
     'pn_per_kc_std': 2.1,           # Standard deviation
     'kc_sparsity': 0.05,            # ~5% KC activity in odor response
     'synapse_threshold': 3,         # Min synapses to count as connection
 }
 
+# For real hemibrain wiring, use n_pn=400 to preserve connectivity structure
+# Subsampling to 180 loses too much real connectivity
+REAL_HEMIBRAIN_N_PN = 400
 
-def load_hemibrain_connectivity(path: str = None) -> Optional[np.ndarray]:
+
+def load_hemibrain_connectivity(path: str = None, prefer_real: bool = True) -> Optional[Tuple[np.ndarray, str]]:
     """
     Load PN→KC connectivity matrix from hemibrain data.
     
+    Priority order (if prefer_real=True):
+    1. Real hemibrain extracted data (hemibrain_real_pn_kc.npz)
+    2. Stats-matched fallback (hemibrain_pn_kc.npz)
+    
     Returns:
-        Sparse binary matrix (n_pn, n_kc) or None if not available
+        Tuple of (sparse binary matrix (n_pn, n_kc), source_label) or None if not available
     """
-    if path is None:
-        # Try default paths
-        default_paths = [
-            Path('artifacts/connectome/hemibrain_pn_kc.npz'),
-            Path('artifacts/connectome/pn_kc_matrix.npz'),
-        ]
-        for p in default_paths:
-            if p.exists():
-                path = str(p)
-                break
+    # Define paths to try in priority order
+    default_paths = []
     
-    if path is None or not Path(path).exists():
-        return None
+    if path is not None:
+        default_paths.append((Path(path), 'provided'))
     
-    try:
-        data = np.load(path, allow_pickle=True)
-        if 'pn_kc_matrix' in data:
-            matrix = data['pn_kc_matrix']
-            print(f"Loaded hemibrain connectivity: {matrix.shape}")
-            return matrix
-    except Exception as e:
-        print(f"Failed to load connectivity: {e}")
+    if prefer_real:
+        # Prefer real extracted hemibrain data
+        default_paths.append((Path('artifacts/connectome/hemibrain_real_pn_kc.npz'), 'hemibrain_real'))
+    
+    # Fallback to stats-matched
+    default_paths.append((Path('artifacts/connectome/hemibrain_pn_kc.npz'), 'hemibrain_stats'))
+    default_paths.append((Path('artifacts/connectome/pn_kc_matrix.npz'), 'legacy'))
+    
+    for p, source in default_paths:
+        if p.exists():
+            try:
+                data = np.load(str(p), allow_pickle=True)
+                # Support different key names
+                for key in ['matrix', 'pn_kc_matrix']:
+                    if key in data:
+                        matrix = data[key]
+                        print(f"Loaded {source} connectivity: {matrix.shape}")
+                        return matrix, source
+            except Exception as e:
+                print(f"Failed to load {p}: {e}")
+                continue
     
     return None
 
@@ -305,9 +321,11 @@ def create_wiring_matrix(
     # PN → KC connectivity based on mode
     if config.mode == 'flywire' or config.mode == 'hemibrain':
         # Try to load real connectivity
-        hemibrain_matrix = load_hemibrain_connectivity(config.connectome_path)
+        result = load_hemibrain_connectivity(config.connectome_path, prefer_real=True)
         
-        if hemibrain_matrix is not None:
+        if result is not None:
+            hemibrain_matrix, source_label = result
+            
             # Subsample or pad to match our dimensions
             src_pn, src_kc = hemibrain_matrix.shape
             
@@ -335,9 +353,9 @@ def create_wiring_matrix(
             col_sums[col_sums == 0] = 1  # Avoid division by zero
             pn_kc_weights /= col_sums
             
-            metadata['source'] = 'hemibrain'
+            metadata['source'] = source_label
             metadata['hash'] = hashlib.md5(pn_kc_weights.tobytes()).hexdigest()[:16]
-            print(f"Using hemibrain-derived wiring (hash: {metadata['hash']})")
+            print(f"Using {source_label} wiring (hash: {metadata['hash']})")
         else:
             # Fall back to random but with hemibrain statistics
             print(f"Warning: {config.mode} requested but data not found, "
