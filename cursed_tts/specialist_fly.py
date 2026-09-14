@@ -244,18 +244,33 @@ class SpecialistFly:
         self.total_count = 0
 
 
+# Voting strategies for swarm arbitration
+VOTE_ARGMAX = 'argmax'      # Raw argmax over YES scores (original, can thrash)
+VOTE_SOFTMAX = 'softmax'    # Softmax with temperature over YES scores
+VOTE_MARGIN = 'margin'      # Require margin between best and second-best
+
+VALID_VOTE_STRATEGIES = [VOTE_ARGMAX, VOTE_SOFTMAX, VOTE_MARGIN]
+DEFAULT_VOTE_STRATEGY = VOTE_SOFTMAX
+
+
 @dataclass 
 class SwarmConfig:
     """Configuration for a fly swarm."""
     specialist_config: SpecialistConfig = field(default_factory=SpecialistConfig)
     phonemes: List[str] = field(default_factory=lambda: PHONEME_LIST.copy())
     seed: int = 42
+    vote_strategy: str = DEFAULT_VOTE_STRATEGY  # 'argmax', 'softmax', or 'margin'
+    vote_temperature: float = 0.5               # Temperature for softmax voting
+    vote_margin: float = 0.1                    # Minimum margin for margin voting
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             'specialist_config': self.specialist_config.to_dict(),
             'phonemes': self.phonemes,
             'seed': self.seed,
+            'vote_strategy': self.vote_strategy,
+            'vote_temperature': self.vote_temperature,
+            'vote_margin': self.vote_margin,
         }
     
     @classmethod
@@ -265,6 +280,9 @@ class SwarmConfig:
             specialist_config=spec_config,
             phonemes=d.get('phonemes', PHONEME_LIST.copy()),
             seed=d.get('seed', 42),
+            vote_strategy=d.get('vote_strategy', DEFAULT_VOTE_STRATEGY),
+            vote_temperature=d.get('vote_temperature', 0.5),
+            vote_margin=d.get('vote_margin', 0.1),
         )
 
 
@@ -272,8 +290,12 @@ class FlySwarm:
     """
     Ensemble of specialist flies, one per phoneme.
     
-    At inference, all specialists score the letter context. The phoneme whose
-    specialist has the strongest "YES" vote (highest confidence for YES) wins.
+    At inference, all specialists score the letter context. The phoneme is
+    selected using a configurable voting strategy (arbitrator):
+    
+    - argmax: Raw argmax over YES scores (can thrash when specialists overconfident)
+    - softmax: Softmax with temperature over YES scores (more robust)
+    - margin: Require margin between best and second-best (conservative)
     
     This is closer to biological compartment specialization: each "compartment"
     (specialist fly) responds to its learned association.
@@ -282,6 +304,12 @@ class FlySwarm:
     def __init__(self, config: Optional[SwarmConfig] = None):
         self.config = config or SwarmConfig()
         self.rng = np.random.default_rng(self.config.seed)
+        
+        # Validate vote strategy
+        if self.config.vote_strategy not in VALID_VOTE_STRATEGIES:
+            print(f"Warning: Unknown vote strategy '{self.config.vote_strategy}', "
+                  f"using '{DEFAULT_VOTE_STRATEGY}'")
+            self.config.vote_strategy = DEFAULT_VOTE_STRATEGY
         
         # Create shared expansion layer
         self.shared = SharedExpansion(
@@ -304,19 +332,11 @@ class FlySwarm:
         self.phoneme_list = list(self.specialists.keys())
         print(f"FlySwarm: {len(self.specialists)} specialist flies for phonemes: "
               f"{', '.join(self.phoneme_list[:5])}{'...' if len(self.phoneme_list) > 5 else ''}")
+        print(f"  Vote strategy: {self.config.vote_strategy} "
+              f"(temp={self.config.vote_temperature}, margin={self.config.vote_margin})")
     
-    def predict(self, letter_context: str) -> Tuple[str, float, Dict[str, float]]:
-        """
-        Predict phoneme by ensemble voting.
-        
-        All specialists evaluate the context. The phoneme whose specialist
-        has the strongest YES vote wins.
-        
-        Returns:
-            phoneme: Predicted phoneme
-            confidence: Winning confidence
-            all_scores: Dict mapping phonemes to their YES confidence
-        """
+    def _get_raw_scores(self, letter_context: str) -> Dict[str, float]:
+        """Get raw YES confidence scores from all specialists."""
         kc_activity = self.shared.encode_to_kc(letter_context)
         
         scores = {}
@@ -326,16 +346,104 @@ class FlySwarm:
             if is_yes:
                 scores[phoneme] = confidence
             else:
-                # If specialist says NO, give it a lower score
-                # Use the inverse of NO confidence as a tie-breaker
                 scores[phoneme] = -confidence
         
-        # Winner: highest score (strongest YES)
-        winner = max(scores, key=scores.get)
-        
-        return winner, scores[winner], scores
+        return scores
     
-    def predict_word(self, word: str, n_phonemes: int, context_size: int = None) -> List[str]:
+    def _vote_argmax(self, scores: Dict[str, float]) -> Tuple[str, float]:
+        """Raw argmax voting: pick highest score."""
+        winner = max(scores, key=scores.get)
+        return winner, scores[winner]
+    
+    def _vote_softmax(self, scores: Dict[str, float]) -> Tuple[str, float]:
+        """Softmax voting: sample or pick from softmax distribution."""
+        phonemes = list(scores.keys())
+        raw_scores = np.array([scores[p] for p in phonemes])
+        
+        # Apply temperature
+        temp = max(self.config.vote_temperature, 0.01)  # Prevent division by zero
+        scaled = raw_scores / temp
+        
+        # Softmax with numerical stability
+        scaled = scaled - scaled.max()
+        exp_scores = np.exp(scaled)
+        probs = exp_scores / exp_scores.sum()
+        
+        # Pick highest probability (deterministic softmax)
+        winner_idx = np.argmax(probs)
+        winner = phonemes[winner_idx]
+        
+        return winner, probs[winner_idx]
+    
+    def _vote_margin(self, scores: Dict[str, float]) -> Tuple[str, float]:
+        """Margin voting: require margin between best and second-best."""
+        sorted_items = sorted(scores.items(), key=lambda x: -x[1])
+        
+        if len(sorted_items) < 2:
+            return sorted_items[0][0], sorted_items[0][1]
+        
+        best_phone, best_score = sorted_items[0]
+        second_phone, second_score = sorted_items[1]
+        
+        margin = best_score - second_score
+        
+        # If margin is sufficient, return best
+        if margin >= self.config.vote_margin:
+            return best_phone, best_score
+        
+        # If margin insufficient, use softmax as fallback
+        # This prevents overconfident wrong predictions
+        return self._vote_softmax(scores)
+    
+    def predict(
+        self, 
+        letter_context: str,
+        vote_strategy: Optional[str] = None,
+    ) -> Tuple[str, float, Dict[str, float]]:
+        """
+        Predict phoneme by ensemble voting with configurable arbitrator.
+        
+        Args:
+            letter_context: Input context string
+            vote_strategy: Override config vote strategy (argmax/softmax/margin)
+        
+        Returns:
+            phoneme: Predicted phoneme
+            confidence: Winning confidence/probability
+            all_scores: Dict mapping phonemes to their raw YES scores
+        """
+        scores = self._get_raw_scores(letter_context)
+        
+        strategy = vote_strategy or self.config.vote_strategy
+        
+        if strategy == VOTE_ARGMAX:
+            winner, confidence = self._vote_argmax(scores)
+        elif strategy == VOTE_SOFTMAX:
+            winner, confidence = self._vote_softmax(scores)
+        elif strategy == VOTE_MARGIN:
+            winner, confidence = self._vote_margin(scores)
+        else:
+            # Fallback to softmax
+            winner, confidence = self._vote_softmax(scores)
+        
+        return winner, confidence, scores
+    
+    def set_vote_strategy(self, strategy: str, temperature: float = None, margin: float = None):
+        """Change voting strategy at runtime."""
+        if strategy in VALID_VOTE_STRATEGIES:
+            self.config.vote_strategy = strategy
+        if temperature is not None:
+            self.config.vote_temperature = temperature
+        if margin is not None:
+            self.config.vote_margin = margin
+    
+    def predict_word(
+        self, 
+        word: str, 
+        n_phonemes: int, 
+        context_size: int = None,
+        vote_strategy: Optional[str] = None,
+    ) -> List[str]:
         """Predict phoneme sequence for a word."""
         if context_size is None:
             context_size = self.config.specialist_config.context_size
@@ -360,7 +468,7 @@ class FlySwarm:
                     context_chars.append('_')
             letter_context = ''.join(context_chars)
             
-            phoneme, _, _ = self.predict(letter_context)
+            phoneme, _, _ = self.predict(letter_context, vote_strategy=vote_strategy)
             phonemes.append(phoneme)
         
         return phonemes

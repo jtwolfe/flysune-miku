@@ -1,5 +1,13 @@
 # Cursed TTS: G2P Mushroom Body Classifier
 
+<p align="center">
+  <img src="assets/flysune-miku.jpg" alt="Flysune Miku - Project Mascot" width="300">
+  <br>
+  <em>Flysune Miku: Hatsune Miku with a picker swarm in her skull</em>
+  <br>
+  <small>(Project mascot art. Not affiliated with Crypton Future Media.)</small>
+</p>
+
 A cursed text-to-speech toy that uses a **simplified mushroom body neural circuit as a grapheme-to-phoneme (G2P) classifier**. Inspired by the [FlyWire hiragana OCR demo](https://hae.satoru.net/) — a real fruit fly brain learning to read Japanese characters.
 
 ## The Correct Architecture
@@ -230,11 +238,14 @@ The swarm has two stages: **picker flies** choose the phoneme sequence, then **s
 # Train a subset of specialists (phonemes needed for demo words)
 python -m cursed_tts train-swarm --phones demo --epochs 8
 
-# Train all 39 specialists (full ARPAbet)
-python -m cursed_tts train-swarm --epochs 10
+# Train all 39 specialists (full ARPAbet) with softmax voting
+python -m cursed_tts train-swarm --epochs 10 --vote softmax
 
 # Speak using the fly swarm
 python -m cursed_tts speak mushroom --swarm
+
+# Speak with a specific voting strategy
+python -m cursed_tts speak mushroom --swarm --vote margin
 
 # Generate all swarm demo WAVs
 python -m cursed_tts speak-all --swarm
@@ -243,6 +254,47 @@ python -m cursed_tts speak-all --swarm
 python -m cursed_tts eval --swarm
 ```
 
+### Voting Strategies (Arbitrator)
+
+The swarm uses a configurable **arbitrator** to combine specialist votes:
+
+| Strategy | Flag | Description |
+|----------|------|-------------|
+| **softmax** | `--vote softmax` | Softmax over YES scores (default, most robust) |
+| **margin** | `--vote margin` | Require margin between best/second; fallback to softmax |
+| **argmax** | `--vote argmax` | Raw argmax (original, can thrash when specialists overconfident) |
+
+```bash
+# Train with softmax voting (recommended)
+python -m cursed_tts train-swarm --vote softmax --vote-temp 0.5
+
+# Train with margin voting
+python -m cursed_tts train-swarm --vote margin --vote-margin 0.1
+
+# Override at inference
+python -m cursed_tts speak mushroom --swarm --vote margin
+```
+
+**Why this matters**: Raw argmax voting can degrade as training continues — specialists get overconfident on wrong phonemes. Softmax/margin voting provides more robust ensemble decisions.
+
+### Best Checkpoint & Early Stopping
+
+Training automatically tracks demo_phoneme accuracy and saves the best weights:
+
+```bash
+# Train with early stopping (stop if no improvement for 5 epochs)
+python -m cursed_tts train-swarm --patience 5
+
+# Disable best checkpoint saving
+python -m cursed_tts train-swarm --no-save-best
+```
+
+Output files:
+- `model_swarm.npz` — Final weights (may be degraded on long runs)
+- `model_swarm_best.npz` — Best weights by demo_phoneme accuracy
+
+**Recommendation**: Use `model_swarm_best.npz` for inference after long training runs.
+
 ### Performance
 
 The swarm is an experiment, not an improvement. Expected results:
@@ -250,7 +302,8 @@ The swarm is an experiment, not an improvement. Expected results:
 | Model | Demo Phoneme Acc | Demo Word Acc | Test Phoneme Acc | Test Word Acc |
 |-------|------------------|---------------|------------------|---------------|
 | Single MB (baseline) | ~100% | ~100% | ~71% | ~24% |
-| Fly Swarm (39 specialists) | ~70-80% | ~40-60% | ~50-60% | ~5-15% |
+| Fly Swarm (softmax) | ~80-90% | ~50-70% | ~55-65% | ~10-20% |
+| Fly Swarm (argmax) | ~70-80% | ~40-60% | ~50-60% | ~5-15% |
 
 **Why worse?** The specialists vote independently — they don't see each other's outputs. The single MB has one unified decision boundary across all classes; the swarm has 39 independent binary classifiers that can disagree. This is biologically interesting but mathematically suboptimal.
 

@@ -154,12 +154,30 @@ def evaluate_swarm_words(
     return phoneme_acc, word_acc, details
 
 
+def _copy_swarm_weights(swarm: FlySwarm) -> Dict[str, np.ndarray]:
+    """Copy all specialist weights for checkpointing."""
+    return {p: s.kc_mbon_weights.copy() for p, s in swarm.specialists.items()}
+
+
+def _restore_swarm_weights(swarm: FlySwarm, weights: Dict[str, np.ndarray]):
+    """Restore specialist weights from checkpoint."""
+    for p, w in weights.items():
+        if p in swarm.specialists:
+            swarm.specialists[p].kc_mbon_weights = w.copy()
+
+
 def train_swarm(
     phonemes: Optional[List[str]] = None,
     max_words: int = 10000,
     n_epochs: int = 10,
     context_size: int = 3,
     seed: int = 42,
+    vote_strategy: str = 'softmax',
+    vote_temperature: float = 0.5,
+    vote_margin: float = 0.1,
+    early_stop_patience: int = 0,
+    save_best: bool = True,
+    best_path: Optional[str] = None,
     verbose: bool = True,
 ) -> Tuple[FlySwarm, Dict]:
     """
@@ -171,6 +189,12 @@ def train_swarm(
         n_epochs: Training epochs
         context_size: Letter context window size
         seed: Random seed
+        vote_strategy: Voting strategy ('argmax', 'softmax', 'margin')
+        vote_temperature: Temperature for softmax voting
+        vote_margin: Minimum margin for margin voting
+        early_stop_patience: Stop if demo_phoneme doesn't improve for N epochs (0=disabled)
+        save_best: Save best checkpoint by demo_phoneme accuracy
+        best_path: Path for best checkpoint (default: model_swarm_best.npz)
         verbose: Print progress
     
     Returns:
@@ -208,12 +232,15 @@ def train_swarm(
         print(f"Training pairs (filtered): {len(train_pairs_filtered)}/{len(train_pairs)}")
         print(f"Test pairs (filtered): {len(test_pairs_filtered)}/{len(test_pairs)}")
     
-    # Create swarm
+    # Create swarm with voting config
     spec_config = SpecialistConfig(context_size=context_size, seed=seed)
     swarm_config = SwarmConfig(
         specialist_config=spec_config,
         phonemes=phonemes,
         seed=seed,
+        vote_strategy=vote_strategy,
+        vote_temperature=vote_temperature,
+        vote_margin=vote_margin,
     )
     swarm = FlySwarm(swarm_config)
     
@@ -229,6 +256,11 @@ def train_swarm(
         print(f"Phonemes: {', '.join(sorted(phonemes)[:10])}{'...' if len(phonemes) > 10 else ''}")
         print(f"Training pairs: {len(train_pairs_filtered)}")
         print(f"Epochs: {n_epochs}")
+        print(f"Vote strategy: {vote_strategy} (temp={vote_temperature}, margin={vote_margin})")
+        if early_stop_patience > 0:
+            print(f"Early stop patience: {early_stop_patience} epochs")
+        if save_best:
+            print(f"Best checkpoint: enabled")
         print(f"{'='*60}\n")
     
     history = {
@@ -237,7 +269,15 @@ def train_swarm(
         'demo_phoneme_acc': [],
         'demo_word_acc': [],
         'specialist_accs': [],
+        'best_epoch': None,
+        'best_demo_phoneme': 0.0,
     }
+    
+    # Best checkpoint tracking
+    best_demo_phoneme = 0.0
+    best_epoch = 0
+    best_weights = None
+    epochs_without_improvement = 0
     
     start_time = time.time()
     
@@ -263,18 +303,55 @@ def train_swarm(
         history['demo_word_acc'].append(demo_word_acc)
         history['specialist_accs'].append(spec_accs)
         
+        # Check for best demo performance
+        is_best = False
+        if demo_phoneme_acc > best_demo_phoneme:
+            best_demo_phoneme = demo_phoneme_acc
+            best_epoch = epoch
+            best_weights = _copy_swarm_weights(swarm)
+            epochs_without_improvement = 0
+            is_best = True
+        else:
+            epochs_without_improvement += 1
+        
         epoch_time = time.time() - epoch_start
         total_time = time.time() - start_time
         
         if verbose:
             avg_spec = np.mean(list(spec_accs.values()))
+            best_marker = " ★ BEST" if is_best else ""
             print(f"\nEpoch {epoch:2d}/{n_epochs}: "
                   f"ensemble_train={100*train_acc:.1f}%, "
                   f"test={100*test_acc:.1f}%, "
                   f"demo_phoneme={100*demo_phoneme_acc:.1f}%, "
                   f"demo_word={100*demo_word_acc:.1f}%, "
                   f"avg_specialist={100*avg_spec:.1f}% "
-                  f"[{epoch_time:.0f}s, total {total_time:.0f}s]")
+                  f"[{epoch_time:.0f}s, total {total_time:.0f}s]{best_marker}")
+        
+        # Early stopping check
+        if early_stop_patience > 0 and epochs_without_improvement >= early_stop_patience:
+            if verbose:
+                print(f"\n⚠ Early stopping: no improvement in demo_phoneme for {early_stop_patience} epochs")
+                print(f"  Best was epoch {best_epoch} with demo_phoneme={100*best_demo_phoneme:.1f}%")
+            break
+    
+    # Record best epoch info
+    history['best_epoch'] = best_epoch
+    history['best_demo_phoneme'] = best_demo_phoneme
+    
+    # Restore best weights if we have them and training continued past best
+    if best_weights is not None and best_epoch < n_epochs:
+        if verbose:
+            print(f"\n✓ Restoring best weights from epoch {best_epoch} "
+                  f"(demo_phoneme={100*best_demo_phoneme:.1f}%)")
+        _restore_swarm_weights(swarm, best_weights)
+    
+    # Save best checkpoint if requested
+    if save_best and best_weights is not None:
+        checkpoint_path = best_path or "model_swarm_best.npz"
+        swarm.save(checkpoint_path)
+        if verbose:
+            print(f"✓ Best checkpoint saved to {checkpoint_path} (epoch {best_epoch})")
     
     return swarm, history
 
@@ -419,20 +496,41 @@ def train_and_save_swarm(
     n_epochs: int = 10,
     max_words: int = 10000,
     seed: int = 42,
+    vote_strategy: str = 'softmax',
+    vote_temperature: float = 0.5,
+    vote_margin: float = 0.1,
+    early_stop_patience: int = 0,
+    save_best: bool = True,
     verbose: bool = True,
 ) -> FlySwarm:
     """Train and save a fly swarm."""
+    # Best checkpoint path derived from output path
+    best_path = output_path.replace('.npz', '_best.npz')
+    if best_path == output_path:
+        best_path = output_path + '_best'
+    
     swarm, history = train_swarm(
         phonemes=phonemes,
         max_words=max_words,
         n_epochs=n_epochs,
         seed=seed,
+        vote_strategy=vote_strategy,
+        vote_temperature=vote_temperature,
+        vote_margin=vote_margin,
+        early_stop_patience=early_stop_patience,
+        save_best=save_best,
+        best_path=best_path,
         verbose=verbose,
     )
     
     if verbose:
         evaluate_swarm(swarm, verbose=True)
         compare_to_baseline(swarm, verbose=True)
+        
+        # Print best epoch info
+        if history.get('best_epoch'):
+            print(f"\n★ Best epoch: {history['best_epoch']} "
+                  f"(demo_phoneme={100*history['best_demo_phoneme']:.1f}%)")
     
     swarm.save(output_path)
     return swarm

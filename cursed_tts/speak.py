@@ -219,7 +219,7 @@ class SwarmSpeaker:
     
     Two stages:
     1. Picker flies: Each specialist votes YES/NO for its target phoneme.
-       The phoneme with the strongest YES wins.
+       The phoneme with the strongest YES wins (configurable voting strategy).
     2. Singer flies: Each phoneme has its own personalized audio renderer
        with distinct voice characteristics (F0, formants, vibrato, etc.)
     
@@ -227,11 +227,12 @@ class SwarmSpeaker:
     of the utterance are sung by different specialized flies.
     """
     
-    def __init__(self, picker_swarm, singer_swarm=None):
+    def __init__(self, picker_swarm, singer_swarm=None, vote_strategy: Optional[str] = None):
         from .specialist_fly import FlySwarm
         from .singer_fly import SingerSwarm
         
         self.picker_swarm: FlySwarm = picker_swarm
+        self.vote_strategy = vote_strategy  # None = use swarm's default
         
         # Create singer swarm with same phonemes as picker
         if singer_swarm is None:
@@ -246,7 +247,12 @@ class SwarmSpeaker:
         self.phoneme_audio = synthesize_all_phonemes()
     
     @classmethod
-    def from_model_file(cls, path: str, singer_path: Optional[str] = None) -> 'SwarmSpeaker':
+    def from_model_file(
+        cls, 
+        path: str, 
+        singer_path: Optional[str] = None,
+        vote_strategy: Optional[str] = None,
+    ) -> 'SwarmSpeaker':
         """Load swarm speaker from model file."""
         from .specialist_fly import FlySwarm
         from .singer_fly import SingerSwarm
@@ -260,7 +266,7 @@ class SwarmSpeaker:
             except Exception:
                 pass
         
-        return cls(picker_swarm, singer_swarm)
+        return cls(picker_swarm, singer_swarm, vote_strategy)
     
     def get_reference_phonemes(self, word: str) -> Tuple[List[str], bool]:
         """Get reference phonemes from CMUdict or G2P."""
@@ -270,7 +276,9 @@ class SwarmSpeaker:
     
     def get_swarm_phonemes(self, word: str, n_phonemes: int) -> List[str]:
         """Predict phonemes using the picker fly swarm."""
-        return self.picker_swarm.predict_word(word, n_phonemes)
+        return self.picker_swarm.predict_word(
+            word, n_phonemes, vote_strategy=self.vote_strategy
+        )
     
     def synthesize(self, phonemes: List[str]) -> np.ndarray:
         """

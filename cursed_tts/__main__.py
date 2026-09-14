@@ -101,7 +101,8 @@ def cmd_speak(args):
             output_path = f"artifacts/swarm/{word_clean}.wav"
         
         swarm_model = getattr(args, 'swarm_model', 'model_swarm.npz')
-        speaker = SwarmSpeaker.from_model_file(swarm_model)
+        vote_strategy = getattr(args, 'vote', None)
+        speaker = SwarmSpeaker.from_model_file(swarm_model, vote_strategy=vote_strategy)
         audio, audio_ph, ref_ph, known = speaker.speak(
             args.word, output_path, verbose=True
         )
@@ -180,7 +181,8 @@ def cmd_speak_all(args):
         output_dir.mkdir(parents=True, exist_ok=True)
         
         swarm_model = getattr(args, 'swarm_model', 'model_swarm.npz')
-        speaker = SwarmSpeaker.from_model_file(swarm_model)
+        vote_strategy = getattr(args, 'vote', None)
+        speaker = SwarmSpeaker.from_model_file(swarm_model, vote_strategy=vote_strategy)
         results = speaker.speak_all(str(output_dir), verbose=True)
         return
     
@@ -255,7 +257,7 @@ def cmd_info(args):
 def cmd_train_swarm(args):
     """Train one-phoneme-per-fly specialist ensemble."""
     from .train_swarm import train_and_save_swarm, train_swarm_demo
-    from .specialist_fly import get_demo_phonemes
+    from .specialist_fly import get_demo_phonemes, VALID_VOTE_STRATEGIES
     from .phonemes import PHONEME_LIST
     
     # Determine phoneme subset
@@ -271,12 +273,28 @@ def cmd_train_swarm(args):
         phonemes = [p.strip().upper() for p in phones_arg.split(',')]
         print(f"Training custom subset: {len(phonemes)} phonemes")
     
+    # Get voting parameters
+    vote_strategy = getattr(args, 'vote', 'softmax')
+    if vote_strategy not in VALID_VOTE_STRATEGIES:
+        print(f"Warning: Unknown vote strategy '{vote_strategy}', using 'softmax'")
+        vote_strategy = 'softmax'
+    
+    vote_temp = getattr(args, 'vote_temp', 0.5)
+    vote_margin = getattr(args, 'vote_margin', 0.1)
+    patience = getattr(args, 'patience', 0)
+    save_best = not getattr(args, 'no_save_best', False)
+    
     swarm = train_and_save_swarm(
         output_path=args.output,
         phonemes=phonemes,
         n_epochs=args.epochs,
         max_words=args.words,
         seed=args.seed,
+        vote_strategy=vote_strategy,
+        vote_temperature=vote_temp,
+        vote_margin=vote_margin,
+        early_stop_patience=patience,
+        save_best=save_best,
         verbose=True,
     )
     print(f"\nSwarm saved to: {args.output}")
@@ -357,6 +375,19 @@ Examples:
                                      help='Output model path (default: model_swarm.npz)')
     train_swarm_parser.add_argument('--seed', type=int, default=42,
                                      help='Random seed (default: 42)')
+    # Voting/arbitration options
+    train_swarm_parser.add_argument('--vote', type=str, default='softmax',
+                                     choices=['argmax', 'softmax', 'margin'],
+                                     help='Voting strategy: argmax, softmax, margin (default: softmax)')
+    train_swarm_parser.add_argument('--vote-temp', type=float, default=0.5,
+                                     help='Softmax temperature (default: 0.5, lower=sharper)')
+    train_swarm_parser.add_argument('--vote-margin', type=float, default=0.1,
+                                     help='Margin threshold for margin voting (default: 0.1)')
+    # Early stopping / checkpointing
+    train_swarm_parser.add_argument('--patience', type=int, default=0,
+                                     help='Early stop if demo_phoneme stagnates for N epochs (0=disabled)')
+    train_swarm_parser.add_argument('--no-save-best', action='store_true',
+                                     help='Disable saving best checkpoint by demo_phoneme')
     
     # Speak command
     speak_parser = subparsers.add_parser('speak', help='Speak a word')
@@ -372,6 +403,9 @@ Examples:
                               help='Use one-phoneme-per-fly ensemble')
     speak_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                               help='Swarm model path (default: model_swarm.npz)')
+    speak_parser.add_argument('--vote', type=str, default=None,
+                              choices=['argmax', 'softmax', 'margin'],
+                              help='Override swarm voting strategy')
     # Legacy flags
     speak_parser.add_argument('--stage2', action='store_true',
                               help='[LEGACY] Use Stage 2 mel + Griffin-Lim')
@@ -395,6 +429,9 @@ Examples:
                                    help='Use one-phoneme-per-fly ensemble')
     speak_all_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
                                    help='Swarm model path')
+    speak_all_parser.add_argument('--vote', type=str, default=None,
+                                   choices=['argmax', 'softmax', 'margin'],
+                                   help='Override swarm voting strategy')
     # Legacy flags
     speak_all_parser.add_argument('--stage2', action='store_true',
                                    help='[LEGACY] Use Stage 2')
