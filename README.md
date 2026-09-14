@@ -175,6 +175,114 @@ Scratchy/experimental outputs from the trajectory-regression approach. Not recom
 3. **Not real FlyWire**: Simplified MB, not actual connectome weights
 4. **Cursed quality**: This is a toy, not production TTS
 
+---
+
+## One Phoneme Per Fly (Experimental)
+
+*"What if each phoneme had its own dedicated fly brain?"*
+
+### The Joke (and the Biology)
+
+In the real fruit fly mushroom body, different **MBON compartments** respond to different learned associations. The standard multi-class MB uses one MBON per phoneme class (39 compartments), with winner-take-all selecting the prediction.
+
+The **one-phoneme-per-fly** experiment takes this to the extreme: instead of one brain with 39 output compartments, we train an **ensemble of 39 specialist flies**. Each specialist answers a simple binary question: *"Is the next phoneme /K/?"* At inference, all 39 flies evaluate the letter context, and we pick the phoneme whose specialist is most confident it's seeing its target.
+
+This is closer to the biological concept of **compartment specialization** — each MBON compartment in the real fly responds preferentially to specific odor-reward associations. Here, each "compartment" (specialist fly) specializes in detecting one phoneme.
+
+### Architecture
+
+```
+    Letter context ("_ca_t__")
+            ↓
+    ┌───────────────────────────────────────┐
+    │   Shared PN→KC Expansion              │
+    │   (Random projection + sparse coding) │
+    └───────────────────────────────────────┘
+            ↓ KC activity (shared)
+    ┌─────┬─────┬─────┬─────┬─────┐
+    │ /K/ │ /AE/│ /T/ │ /D/ │ ... │  ← 39 Specialist Flies
+    │ Fly │ Fly │ Fly │ Fly │     │
+    │YES/NO│YES/NO│YES/NO│YES/NO│   │
+    └──┬──┴──┬──┴──┬──┴──┬──┴─────┘
+       │     │     │     │
+       ↓     ↓     ↓     ↓
+    Pick phoneme with strongest YES vote
+            ↓
+    Clean formant synthesis → Audio
+```
+
+Each specialist has:
+- **Shared input layer**: Same PN→KC expansion as others (efficiency)
+- **Private output weights**: KC→MBON with 2 outputs (YES/NO)
+- **Same learning rule**: Dopamine-when-wrong (anti-Hebbian)
+
+### Quick Start (Swarm)
+
+```bash
+# Train a subset of specialists (phonemes needed for demo words)
+python -m cursed_tts train-swarm --phones demo --epochs 8
+
+# Train all 39 specialists (full ARPAbet)
+python -m cursed_tts train-swarm --epochs 10
+
+# Speak using the fly swarm
+python -m cursed_tts speak mushroom --swarm
+
+# Generate all swarm demo WAVs
+python -m cursed_tts speak-all --swarm
+
+# Compare swarm vs baseline accuracy
+python -m cursed_tts eval --swarm
+```
+
+### Performance
+
+The swarm is an experiment, not an improvement. Expected results:
+
+| Model | Demo Phoneme Acc | Demo Word Acc | Test Phoneme Acc | Test Word Acc |
+|-------|------------------|---------------|------------------|---------------|
+| Single MB (baseline) | ~100% | ~100% | ~71% | ~24% |
+| Fly Swarm (39 specialists) | ~70-80% | ~40-60% | ~50-60% | ~5-15% |
+
+**Why worse?** The specialists vote independently — they don't see each other's outputs. The single MB has one unified decision boundary across all classes; the swarm has 39 independent binary classifiers that can disagree. This is biologically interesting but mathematically suboptimal.
+
+### Output Examples
+
+Swarm predictions for demo words (demo-subset swarm):
+
+| Word | Reference | Swarm Prediction | Match |
+|------|-----------|------------------|-------|
+| cat | K AE T | K AE T | 100% |
+| dog | D AO G | D AO G | 100% |
+| mushroom | M AH SH R UW M | M AH SH R AH M | 83% |
+| australia | AO S T R EY L Y AH | AO AH S S AH L AH AH | 38% |
+| chaos | K EY AA S | K EH R S | 50% |
+
+### artifacts/swarm/
+
+WAV files generated using swarm predictions for:
+- cat, dog, mushroom, hatsune, australia, kenyon, chaos, connectome
+
+### Why Do This?
+
+1. **Meme science**: It's a cursed TTS project, so why not?
+2. **Biology exploration**: Tests whether compartment specialization can work for classification
+3. **Failure is data**: Understanding why the swarm underperforms reveals the value of unified multi-class decision boundaries
+4. **Educational**: Demonstrates ensemble methods vs single classifiers
+
+### Freeze Tags
+
+- `v0.1.0-g2p-acceptable`: The baseline single-MB model (don't modify)
+- `freeze/g2p-acceptable`: Frozen branch with baseline (don't modify)
+
+### Future Ideas (Not Implemented)
+
+- **Hierarchical swarms**: Specialists for phoneme *categories* (vowels, stops, fricatives) that then dispatch to sub-specialists
+- **Shared attention**: Let specialists see top-K votes from other specialists before final decision
+- **CMU Arctic integration**: Replace formant crumbs with real phoneme audio units (would require downloading corpora — not done to keep the project lightweight)
+
+---
+
 ## References
 
 - [FlyWire Hiragana OCR Demo](https://hae.satoru.net/) — The inspiration
