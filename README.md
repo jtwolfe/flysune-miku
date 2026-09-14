@@ -398,8 +398,98 @@ The result is a "choir of flies" effect where different phonemes are literally s
 
 - **Hierarchical swarms**: Specialists for phoneme *categories* (vowels, stops, fricatives) that then dispatch to sub-specialists
 - **Shared attention**: Let specialists see top-K votes from other specialists before final decision
-- **UTAU/OpenUTAU voicebank slices**: Replace synthetic formant crumbs with real phoneme audio samples from open voicebanks (see hook in `singer_fly.py`). This would require downloading voicebank files but could provide much higher quality phoneme rendering while keeping the MoE architecture.
 - **CMU Arctic integration**: Use diphone/triphone units from CMU Arctic for more natural concatenative synthesis
+
+---
+
+## MARIAN ILUSTRADO Voice Integration
+
+*"Real voice samples instead of synthetic formants"*
+
+The project now supports **MARIAN ILUSTRADO**, an English ARPAsing UTAU voicebank by Kanabun, as an optional audio source for singer flies. This replaces (or supplements) the synthetic formant synthesis with real recorded phoneme samples.
+
+### Quick Start (MARIAN)
+
+```bash
+# Speak with MARIAN voice (requires voicebank download)
+python -m cursed_tts speak mushroom --voice marian
+
+# Speak all demo words with MARIAN
+python -m cursed_tts speak-all --voice marian
+
+# Specify custom voicebank path
+python -m cursed_tts speak cat --voice marian --voicebank /path/to/marian
+```
+
+### Getting the MARIAN Voicebank
+
+MARIAN ILUSTRADO is free to use with attribution. To download:
+
+1. Visit: https://downloadmarian.carrd.co/
+2. Scroll to "Ilustrado SERIES"
+3. Download from MediaFire
+4. Extract to `data/marian_crumbs/` or `~/.cursed_tts/voicebanks/marian/`
+
+Or use the fetch script:
+
+```bash
+# Show download instructions
+python scripts/fetch_marian.py download
+
+# After manual download, extract
+python scripts/fetch_marian.py extract /path/to/downloaded.zip
+
+# Create minimal crumb pack (essential phonemes only)
+python scripts/fetch_marian.py crumb-pack --input /path/to/full/voicebank
+```
+
+### ARPAbet ↔ Arpasing Mapping
+
+The integration includes a complete mapping between CMUdict ARPAbet (uppercase, e.g., `AA`, `AE`, `IY`) and Arpasing aliases (lowercase, e.g., `aa`, `ae`, `iy`). Fallback chains handle missing phonemes:
+
+| ARPAbet | Arpasing | If Missing, Fallback To |
+|---------|----------|------------------------|
+| AA | aa | AO, AH |
+| AE | ae | EH, AH |
+| TH | th | F, S |
+| ZH | zh | Z, JH |
+| ... | ... | (see arpasing_map.py) |
+
+### Coverage
+
+With full MARIAN ILUSTRADO voicebank: **100% direct coverage** (all 39 ARPAbet phonemes).
+
+Without voicebank: Falls back to formant synthesis for missing samples.
+
+### Attribution
+
+When using MARIAN voice samples, credit is required:
+
+> Voice: MARIAN ILUSTRADO by Kanabun
+> https://downloadmarian.carrd.co/
+
+See `NOTICE` file for full license terms.
+
+### Technical Details
+
+The MARIAN integration maintains the picker/singer fly architecture:
+
+1. **Picker flies** (G2P classification): Choose phoneme sequence (unchanged)
+2. **MARIAN singer flies**: Render each phoneme using real WAV samples
+3. **Fallback**: Formant synthesis for unavailable phonemes
+
+```python
+from cursed_tts.voicebanks import MarianSingerSwarm
+
+# Create MARIAN swarm
+swarm = MarianSingerSwarm(voicebank_path="data/marian_crumbs")
+
+# Synthesize a word
+audio = swarm.synthesize_sequence(['K', 'AE', 'T'])
+
+# Check coverage
+print(swarm.get_coverage_summary())
+```
 
 ---
 

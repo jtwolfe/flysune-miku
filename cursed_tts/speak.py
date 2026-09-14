@@ -412,6 +412,224 @@ class SwarmSpeaker:
         return results
 
 
+class MarianSwarmSpeaker:
+    """
+    Speaker using MARIAN ILUSTRADO voicebank for audio rendering.
+    
+    Combines picker flies for G2P with MARIAN voice samples for synthesis.
+    Falls back to formant synthesis for missing phonemes.
+    
+    MARIAN ILUSTRADO is an English ARPAsing voicebank by Kanabun.
+    https://downloadmarian.carrd.co/
+    """
+    
+    def __init__(
+        self, 
+        picker_swarm, 
+        marian_swarm=None, 
+        vote_strategy: Optional[str] = None,
+        voicebank_path: Optional[Path] = None,
+    ):
+        from .specialist_fly import FlySwarm
+        from .voicebanks import MarianSingerSwarm
+        
+        self.picker_swarm: FlySwarm = picker_swarm
+        self.vote_strategy = vote_strategy
+        
+        # Create MARIAN singer swarm
+        if marian_swarm is None:
+            self.singer_swarm = MarianSingerSwarm(
+                voicebank_path=voicebank_path,
+                phonemes=list(picker_swarm.specialists.keys()),
+                fallback_synth=True,
+            )
+        else:
+            self.singer_swarm = marian_swarm
+        
+        # Fallback for phonemes not covered
+        self.phoneme_audio = synthesize_all_phonemes()
+    
+    @classmethod
+    def from_model_file(
+        cls,
+        path: str,
+        voicebank_path: Optional[str] = None,
+        vote_strategy: Optional[str] = None,
+    ) -> 'MarianSwarmSpeaker':
+        """Load MARIAN speaker from picker model file."""
+        from .specialist_fly import FlySwarm
+        from .voicebanks import MarianSingerSwarm
+        
+        picker_swarm = FlySwarm.load(path)
+        
+        vb_path = Path(voicebank_path) if voicebank_path else None
+        
+        return cls(picker_swarm, voicebank_path=vb_path, vote_strategy=vote_strategy)
+    
+    @classmethod
+    def is_available(cls) -> bool:
+        """Check if MARIAN voicebank is installed."""
+        from .voicebanks import MarianSingerSwarm
+        return MarianSingerSwarm.is_available()
+    
+    def get_reference_phonemes(self, word: str) -> Tuple[List[str], bool]:
+        """Get reference phonemes from CMUdict or G2P."""
+        phonemes = get_phonemes(word, allow_g2p=True)
+        known = is_known_word(word)
+        return phonemes, known
+    
+    def get_swarm_phonemes(self, word: str, n_phonemes: int) -> List[str]:
+        """Predict phonemes using the picker fly swarm."""
+        return self.picker_swarm.predict_word(
+            word, n_phonemes, vote_strategy=self.vote_strategy
+        )
+    
+    def synthesize(self, phonemes: List[str]) -> np.ndarray:
+        """
+        Synthesize audio from phoneme sequence using MARIAN samples.
+        """
+        return self.singer_swarm.synthesize_sequence(phonemes)
+    
+    def speak(
+        self,
+        word: str,
+        output_path: Optional[str] = None,
+        verbose: bool = True,
+    ) -> Tuple[np.ndarray, List[str], List[str], bool]:
+        """
+        Speak a word using MARIAN voice.
+        
+        Returns:
+            audio: Audio signal
+            audio_phonemes: Phonemes used for synthesis
+            reference_phonemes: Reference phonemes from CMUdict/G2P
+            is_known: Whether word is in CMUdict
+        """
+        word = word.lower().strip()
+        
+        # Get reference phonemes
+        ref_phonemes, is_known = self.get_reference_phonemes(word)
+        ref_phonemes_stripped = [strip_stress(p) for p in ref_phonemes]
+        
+        # Use swarm predictions
+        audio_phonemes = self.get_swarm_phonemes(word, len(ref_phonemes))
+        audio_phonemes = [strip_stress(p) for p in audio_phonemes]
+        
+        # Synthesize with MARIAN
+        audio = self.synthesize(audio_phonemes)
+        
+        if verbose:
+            known_str = "CMUdict" if is_known else "G2P"
+            print(f"\nSpeaking: '{word}' ({known_str}) [MARIAN]")
+            print(f"  Reference: {' '.join(ref_phonemes_stripped)}")
+            print(f"  Swarm:     {' '.join(audio_phonemes)}")
+            
+            n_match = sum(1 for r, a in zip(ref_phonemes_stripped, audio_phonemes) if r == a)
+            n_total = len(ref_phonemes_stripped)
+            match_pct = 100 * n_match / n_total if n_total > 0 else 0
+            print(f"  Match: {n_match}/{n_total} ({match_pct:.0f}%)")
+            
+            # Show MARIAN coverage
+            has_sample = sum(1 for p in audio_phonemes 
+                           if p in self.singer_swarm.singers 
+                           and self.singer_swarm.singers[p].has_sample)
+            print(f"  MARIAN samples: {has_sample}/{len(audio_phonemes)}")
+        
+        if output_path:
+            save_wav(audio, output_path, SAMPLE_RATE)
+        
+        return audio, audio_phonemes, ref_phonemes_stripped, is_known
+    
+    def speak_demo(
+        self,
+        output_dir: str = "artifacts/marian",
+        verbose: bool = True,
+    ) -> Dict[str, Dict]:
+        """Speak all demo words with MARIAN."""
+        demo_words = get_demo_words()
+        return self._speak_wordlist(demo_words, output_dir, verbose)
+    
+    def _speak_wordlist(
+        self,
+        words: List[str],
+        output_dir: str,
+        verbose: bool,
+    ) -> Dict[str, Dict]:
+        """Speak a list of words with MARIAN."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        results = {}
+        for word in words:
+            word_clean = ''.join(c for c in word.lower() if c.isalnum())
+            output_path = output_dir / f"{word_clean}.wav"
+            
+            try:
+                audio, audio_ph, ref_ph, known = self.speak(
+                    word, str(output_path), verbose=verbose
+                )
+                results[word] = {
+                    'audio_phonemes': audio_ph,
+                    'reference_phonemes': ref_ph,
+                    'is_known': known,
+                    'path': str(output_path),
+                }
+            except Exception as e:
+                print(f"Error on '{word}': {e}")
+                results[word] = {'error': str(e)}
+        
+        return results
+    
+    def speak_all(
+        self,
+        output_dir: str = "artifacts/marian",
+        verbose: bool = True,
+    ) -> Dict[str, Dict]:
+        """Speak demo words and examples with MARIAN."""
+        results = {}
+        
+        if verbose:
+            print(f"\n=== Demo Words (MARIAN) ===")
+        results.update(self.speak_demo(output_dir, verbose))
+        
+        if verbose:
+            print(f"\n=== MARIAN Examples ===")
+        marian_words = [
+            'mushroom', 'connectome', 'chaos', 'hatsune', 'australia',
+            'kenyon', 'flywire', 'neural', 'miku', 'voice'
+        ]
+        results.update(self._speak_wordlist(marian_words, output_dir, verbose))
+        
+        if verbose:
+            print(f"\nMARIAN WAVs saved to: {output_dir}")
+            print(f"\nAttribution: MARIAN ILUSTRADO by Kanabun")
+            print(f"Download: https://downloadmarian.carrd.co/")
+        
+        return results
+    
+    def get_coverage_summary(self) -> str:
+        """Get MARIAN coverage summary."""
+        return self.singer_swarm.get_coverage_summary()
+
+
+def speak_word_marian(
+    word: str,
+    model_path: str = "model_swarm.npz",
+    voicebank_path: Optional[str] = None,
+    output_path: Optional[str] = None,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, List[str]]:
+    """
+    Convenience function to speak a single word with MARIAN voice.
+    """
+    speaker = MarianSwarmSpeaker.from_model_file(
+        model_path, 
+        voicebank_path=voicebank_path
+    )
+    audio, audio_ph, _, _ = speaker.speak(word, output_path, verbose)
+    return audio, audio_ph
+
+
 def speak_word(
     word: str,
     model_path: str = "model.npz",
