@@ -1,0 +1,236 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/cursed_tts/__main__.py", line 580, in <module>
+    main()
+  File "/workspace/cursed_tts/__main__.py", line 576, in main
+    commands[args.command](args)
+  File "/workspace/cursed_tts/__main__.py", line 349, in cmd_train_swarm
+    swarm = train_and_save_swarm(
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/cursed_tts/train_swarm.py", line 719, in train_and_save_swarm
+    compare_to_baseline(swarm, verbose=True)
+  File "/workspace/cursed_tts/train_swarm.py", line 636, in compare_to_baseline
+    demo_ph_b, demo_w_b, _ = evaluate_words(baseline, demo_in_lex, lexicon)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/cursed_tts/train.py", line 87, in evaluate_words
+    pred_phonemes = mb.predict_word(word, n_phonemes)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/cursed_tts/mushroom_body.py", line 400, in predict_word
+    phoneme, _ = self.predict(letter_context)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/cursed_tts/mushroom_body.py", line 348, in predict
+    predicted_idx, activations = self.forward(letter_context)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/cursed_tts/mushroom_body.py", line 264, in forward
+    pn_activity = self.input_to_pn_activity(input_features)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/cursed_tts/mushroom_body.py", line 219, in input_to_pn_activity
+    pn_raw = input_features @ self.input_to_pn
+             ~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~
+ValueError: matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 892 is different from 900)
+Training full swarm: 39 phonemes
+Creating aligned G2P training data...
+Loaded CMUdict: 117493 words
+Filtered lexicon: 117223 words
+Training words: 8000 (including 10 demo)
+Test words: 10922
+Aligning training data...
+  Aligned 5000/8000 words...
+  Total aligned pairs: 50229
+Aligning test data...
+Training pairs: 50229
+Test pairs: 68916
+Training pairs (filtered): 50229/50229
+Test pairs (filtered): 68916/68916
+FlySwarm: 39 specialist flies for phonemes: AA, AE, AH, AO, EH...
+  Vote strategy: softmax (temp=0.5, margin=0.1)
+
+============================================================
+FLY SWARM TRAINING (One Phoneme Per Fly)
+============================================================
+Specialists: 39 flies
+Phonemes: AA, AE, AH, AO, AW, AY, B, CH, D, DH...
+Training pairs: 50229
+Epochs: 6
+Vote strategy: softmax (temp=0.5, margin=0.1)
+Early stop patience: 3 epochs
+Best checkpoint: enabled
+Confusion mining: enabled (after epoch 2, weight=2.0, oversample=1.5x)
+============================================================
+
+  5000/50229: ensemble_acc=99.2%
+  10000/50229: ensemble_acc=98.8%
+  15000/50229: ensemble_acc=98.5%
+  20000/50229: ensemble_acc=98.3%
+  25000/50229: ensemble_acc=98.1%
+  30000/50229: ensemble_acc=97.9%
+  35000/50229: ensemble_acc=97.8%
+  40000/50229: ensemble_acc=97.7%
+  45000/50229: ensemble_acc=97.5%
+  50000/50229: ensemble_acc=97.4%
+
+Epoch  1/6: ensemble_train=97.4%, test=63.3%, demo_phoneme=79.2%, demo_word=60.0%, avg_specialist=97.8% [131s, total 131s] ★ BEST
+  5000/50229: ensemble_acc=98.3%
+  10000/50229: ensemble_acc=98.1%
+  15000/50229: ensemble_acc=98.0%
+  20000/50229: ensemble_acc=97.9%
+  25000/50229: ensemble_acc=97.8%
+  30000/50229: ensemble_acc=97.7%
+  35000/50229: ensemble_acc=97.6%
+  40000/50229: ensemble_acc=97.5%
+  45000/50229: ensemble_acc=97.4%
+  50000/50229: ensemble_acc=97.3%
+
+Epoch  2/6: ensemble_train=97.3%, test=64.9%, demo_phoneme=83.3%, demo_word=60.0%, avg_specialist=98.3% [129s, total 260s] ★ BEST
+
+========================================
+CONFUSION MINING (after epoch 2)
+========================================
+Building confusion matrix from 68916 pairs...
+  5000/68916: accuracy=65.0%
+  10000/68916: accuracy=64.9%
+  15000/68916: accuracy=65.0%
+  20000/68916: accuracy=64.8%
+  25000/68916: accuracy=64.9%
+  30000/68916: accuracy=64.7%
+  35000/68916: accuracy=64.7%
+  40000/68916: accuracy=64.8%
+  45000/68916: accuracy=64.8%
+  50000/68916: accuracy=64.9%
+  55000/68916: accuracy=64.8%
+  60000/68916: accuracy=64.9%
+  65000/68916: accuracy=64.8%
+  Final accuracy: 64.9%
+
+Identified 11 target phonemes with 17 confusion pairs
+Target phonemes being confused:
+  AA → {AE, AH, OW}
+  AE → {AA, AH}
+  AH → {AA}
+  AY → {IH}
+  EH → {IY}
+  ER → {R}
+  IH → {AH, EH, IY}
+  IY → {EH, IH}
+  OW → {AH}
+  R → {ER}
+  Hard fraction in train: 45.1%
+  Hard samples: 22663/50229 (45.1%)
+  Duplicates added: 7534 (15.0% of corpus)
+Augmented: 50229 → 57763 pairs
+Confusion report saved to artifacts/eval/confusion_v2.txt
+========================================
+
+  5000/57763: ensemble_acc=98.0%
+  10000/57763: ensemble_acc=98.2%
+  15000/57763: ensemble_acc=98.2%
+  20000/57763: ensemble_acc=98.1%
+  25000/57763: ensemble_acc=98.0%
+  30000/57763: ensemble_acc=97.9%
+  35000/57763: ensemble_acc=97.9%
+  40000/57763: ensemble_acc=97.8%
+  45000/57763: ensemble_acc=97.7%
+  50000/57763: ensemble_acc=97.6%
+  55000/57763: ensemble_acc=97.6%
+
+Epoch  3/6: ensemble_train=97.5%, test=65.8%, demo_phoneme=87.5%, demo_word=80.0%, avg_specialist=98.4% [148s, total 408s] ★ BEST
+  5000/57763: ensemble_acc=98.6%
+  10000/57763: ensemble_acc=98.5%
+  15000/57763: ensemble_acc=98.5%
+  20000/57763: ensemble_acc=98.4%
+  25000/57763: ensemble_acc=98.3%
+  30000/57763: ensemble_acc=98.3%
+  35000/57763: ensemble_acc=98.1%
+  40000/57763: ensemble_acc=98.1%
+  45000/57763: ensemble_acc=98.0%
+  50000/57763: ensemble_acc=97.9%
+  55000/57763: ensemble_acc=97.9%
+
+Epoch  4/6: ensemble_train=97.8%, test=65.0%, demo_phoneme=83.3%, demo_word=60.0%, avg_specialist=98.5% [138s, total 546s]
+  5000/57763: ensemble_acc=98.3%
+  10000/57763: ensemble_acc=98.3%
+  15000/57763: ensemble_acc=98.4%
+  20000/57763: ensemble_acc=98.4%
+  25000/57763: ensemble_acc=98.3%
+  30000/57763: ensemble_acc=98.2%
+  35000/57763: ensemble_acc=98.1%
+  40000/57763: ensemble_acc=98.1%
+  45000/57763: ensemble_acc=98.0%
+  50000/57763: ensemble_acc=98.0%
+  55000/57763: ensemble_acc=98.0%
+
+Epoch  5/6: ensemble_train=98.0%, test=63.7%, demo_phoneme=75.0%, demo_word=50.0%, avg_specialist=98.5% [135s, total 681s]
+  5000/57763: ensemble_acc=98.7%
+  10000/57763: ensemble_acc=98.6%
+  15000/57763: ensemble_acc=98.7%
+  20000/57763: ensemble_acc=98.6%
+  25000/57763: ensemble_acc=98.6%
+  30000/57763: ensemble_acc=98.5%
+  35000/57763: ensemble_acc=98.5%
+  40000/57763: ensemble_acc=98.4%
+  45000/57763: ensemble_acc=98.3%
+  50000/57763: ensemble_acc=98.2%
+  55000/57763: ensemble_acc=98.2%
+
+Epoch  6/6: ensemble_train=98.2%, test=65.5%, demo_phoneme=83.3%, demo_word=60.0%, avg_specialist=98.5% [142s, total 823s]
+
+⚠ Early stopping: no improvement in demo_phoneme for 3 epochs
+  Best was epoch 3 with demo_phoneme=87.5%
+
+----------------------------------------
+FINAL CONFUSION ANALYSIS
+----------------------------------------
+Building confusion matrix from 68916 pairs...
+  5000/68916: accuracy=65.2%
+  10000/68916: accuracy=65.3%
+  15000/68916: accuracy=65.5%
+  20000/68916: accuracy=65.4%
+  25000/68916: accuracy=65.5%
+  30000/68916: accuracy=65.4%
+  35000/68916: accuracy=65.4%
+  40000/68916: accuracy=65.3%
+  45000/68916: accuracy=65.3%
+  50000/68916: accuracy=65.5%
+  55000/68916: accuracy=65.4%
+  60000/68916: accuracy=65.5%
+  65000/68916: accuracy=65.4%
+  Final accuracy: 65.5%
+Updated confusion report at artifacts/eval/confusion_v2.txt
+
+✓ Restoring best weights from epoch 3 (demo_phoneme=87.5%)
+
+----------------------------------------
+CALIBRATION (per-phoneme Platt scaling)
+----------------------------------------
+Collecting calibration data...
+  Total samples: 2687724
+Fitting Platt calibration...
+  Calibration fitted successfully
+  Post-calibration demo: phoneme=87.5%, word=80.0%
+Swarm saved to artifacts/eval/confusion_v2_best.npz (with calibration)
+✓ Best checkpoint saved to artifacts/eval/confusion_v2_best.npz (epoch 3)
+
+============================================================
+SWARM EVALUATION
+============================================================
+
+--- Demo Words ---
+
+Word            Expected                  Predicted                
+----------------------------------------------------------------------
+cat             K AE T                    K AE T                    ✓
+bat             B AE T                    B AE T                    ✓
+dog             D AO G                    D AO G                    ✓
+go              G OW                      G OW                      ✓
+no              N OW                      N OW                      ✓
+hi              HH AY                     HH IY                     ~
+bye             B AY                      B AY                      ✓
+yes             Y EH S                    AY EH Z                   ~
+me              M IY                      M IY                      ✓
+you             Y UW                      Y UW                      ✓
+
+Demo: phoneme=87.5%, word=80.0%
+Test sample (100 words): phoneme=67.3%, word=9.0%
+============================================================
+Model loaded from model.npz (trained for 939465 steps)

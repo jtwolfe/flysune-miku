@@ -1,0 +1,131 @@
+============================================================
+CONFUSION MATRIX REPORT
+============================================================
+Total samples: 68916
+Overall accuracy: 64.9%
+
+TOP 30 CONFUSIONS (target → predicted):
+------------------------------------------------------------
+  Target → Pred        Count     Rate Target Total
+------------------------------------------------------------
+       S → Z             481    12.0%         4011
+      AA → AH            317    15.2%         2087
+      AH → AA            301     5.3%         5728
+      IH → IY            262     6.7%         3936
+      AH → IH            231     4.0%         5728
+      IY → IH            212     7.8%         2731
+      AH → UW            211     3.7%         5728
+      IH → AH            210     5.3%         3936
+      AH → AE            208     3.6%         5728
+      IH → EH            198     5.0%         3936
+      AE → AH            196    11.3%         1738
+      AH → L             192     3.4%         5728
+       R → ER            188     5.1%         3700
+      AE → AA            184    10.6%         1738
+      AH → IY            178     3.1%         5728
+      AH → EH            175     3.1%         5728
+      AH → OW            173     3.0%         5728
+       S → AH            173     4.3%         4011
+      ER → R             172     7.2%         2388
+      AA → OW            167     8.0%         2087
+      AA → AE            166     8.0%         2087
+      AY → IH            163    17.8%          916
+       L → AH            163     4.0%         4075
+      IH → AY            157     4.0%         3936
+      IH → T             155     3.9%         3936
+      EH → IY            153     6.9%         2211
+      IY → EH            149     5.5%         2731
+      AH → T             147     2.6%         5728
+      OW → AH            144     9.0%         1606
+      AH → N             139     2.4%         5728
+
+WORST PERFORMING PHONEMES:
+----------------------------------------
+      DH:  11.1% accuracy (54 samples)
+      UH:  15.7% accuracy (166 samples)
+      ZH:  22.7% accuracy (44 samples)
+      AA:  32.8% accuracy (2087 samples)
+      EY:  32.8% accuracy (1133 samples)
+      AW:  35.3% accuracy (272 samples)
+       Y:  35.9% accuracy (418 samples)
+      UW:  36.9% accuracy (796 samples)
+      OY:  38.4% accuracy (86 samples)
+      AY:  38.8% accuracy (916 samples)
+
+KNOWN HARD PAIRS (from task spec):
+----------------------------------------
+  IY ↔ EH: 5.5% / 6.9% (me: M IY → M EH)
+  AE ↔ AA: 10.6% / 8.0% (vowel confusion)
+  AY ↔ IY: 9.7% / 3.7% (diphthong/vowel)
+  AY ↔ EH: 2.6% / 0.7% (diphthong/vowel)
+============================================================
+
+MINING CONFIGURATION:
+----------------------------------------
+  max_oversample_ratio: 0.15
+  min_confusion_rate: 0.05
+  require_prediction_match: False
+  target phonemes with confusions: 11
+
+LAST AUGMENTATION STATS:
+  original_count: 50229
+  hard_count: 22663
+  hard_fraction: 0.4512
+  duplicates_added: 7534
+  final_count: 57763
+  oversample_ratio: 0.1500
+
+============================================================
+POST-TRAINING CONFUSION ANALYSIS
+============================================================
+============================================================
+CONFUSION MATRIX REPORT
+============================================================
+Total samples: 68916
+Overall accuracy: 65.5%
+
+TOP 20 CONFUSIONS (target → predicted):
+------------------------------------------------------------
+  Target → Pred        Count     Rate Target Total
+------------------------------------------------------------
+      AH → AA            410     7.2%         5728
+      AH → L             305     5.3%         5728
+      AH → AE            285     5.0%         5728
+      AE → AA            277    15.9%         1738
+      AH → IH            271     4.7%         5728
+      ER → R             268    11.2%         2388
+      IH → IY            252     6.4%         3936
+       S → Z             246     6.1%         4011
+      AA → AH            221    10.6%         2087
+      IY → IH            215     7.9%         2731
+       R → ER            210     5.7%         3700
+      IH → EH            206     5.2%         3936
+      AH → EH            191     3.3%         5728
+       R → AA            188     5.1%         3700
+      AA → AE            187     9.0%         2087
+      OW → AA            179    11.1%         1606
+      AH → OW            178     3.1%         5728
+       K → S             172     4.9%         3496
+      AH → S             170     3.0%         5728
+      AA → OW            160     7.7%         2087
+
+WORST PERFORMING PHONEMES:
+----------------------------------------
+      ZH:  25.0% accuracy (44 samples)
+      UH:  26.5% accuracy (166 samples)
+      DH:  29.6% accuracy (54 samples)
+       Y:  32.5% accuracy (418 samples)
+      UW:  32.8% accuracy (796 samples)
+      AY:  36.6% accuracy (916 samples)
+      AW:  39.0% accuracy (272 samples)
+      AH:  39.1% accuracy (5728 samples)
+      AA:  39.8% accuracy (2087 samples)
+      AO:  39.9% accuracy (981 samples)
+
+KNOWN HARD PAIRS (from task spec):
+----------------------------------------
+  IY ↔ EH: 5.8% / 5.3% (me: M IY → M EH)
+  AE ↔ AA: 15.9% / 9.0% (vowel confusion)
+  AY ↔ IY: 12.4% / 2.3% (diphthong/vowel)
+  AY ↔ EH: 1.9% / 0.2% (diphthong/vowel)
+============================================================

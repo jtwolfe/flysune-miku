@@ -71,7 +71,11 @@ CHAR_TO_IDX = {c: i for i, c in enumerate(CHAR_VOCAB)}
 NUM_CHARS = len(CHAR_VOCAB)  # 27
 
 
-def encode_letter_context(context: str) -> np.ndarray:
+def encode_letter_context(
+    context: str,
+    phoneme_pos: float = None,
+    n_phonemes: int = None,
+) -> np.ndarray:
     """
     Encode letter context as PN-like feature vector.
     
@@ -79,8 +83,14 @@ def encode_letter_context(context: str) -> np.ndarray:
     1. Position-specific one-hot for each character (7 positions × 27 chars = 189)
     2. Bigram features (26×26 = 676, only letter pairs)
     3. Center character one-hot (27)
+    4. Phone slot position features (8 dims) - helps distinguish slots in short words
     
-    Total: ~892 features
+    Args:
+        context: Letter context string (e.g., "_ca_t__")
+        phoneme_pos: Normalized phoneme position (0.0 to 1.0), None for legacy mode
+        n_phonemes: Total phonemes in word, None for legacy mode
+    
+    Total: ~900 features (892 base + 8 position)
     """
     context = context.lower()
     context_len = len(context)
@@ -114,13 +124,33 @@ def encode_letter_context(context: str) -> np.ndarray:
             center_onehot[CHAR_TO_IDX[c]] = 2.0  # Stronger weight for center
     features.append(center_onehot)
     
+    # 4. Phone slot position features (helps distinguish slots in short words like "me")
+    # This tells the network "this is phoneme 0 vs phoneme 1" even when letter contexts overlap
+    phone_pos_features = np.zeros(8, dtype=np.float32)
+    if phoneme_pos is not None:
+        # Continuous position encoding (sinusoidal-like)
+        phone_pos_features[0] = phoneme_pos                    # Raw position [0, 1]
+        phone_pos_features[1] = 1.0 - phoneme_pos              # Complement
+        phone_pos_features[2] = np.sin(np.pi * phoneme_pos)    # Sin encoding
+        phone_pos_features[3] = np.cos(np.pi * phoneme_pos)    # Cos encoding
+        # Discrete slot indicators (first/middle/last)
+        phone_pos_features[4] = 1.0 if phoneme_pos < 0.25 else 0.0   # First slot
+        phone_pos_features[5] = 1.0 if phoneme_pos > 0.75 else 0.0   # Last slot
+        # Phoneme count hint (short word = more overlap)
+        if n_phonemes is not None:
+            phone_pos_features[6] = 1.0 / max(n_phonemes, 1)   # Inverse count
+            phone_pos_features[7] = 1.0 if n_phonemes <= 2 else 0.0  # Short word flag
+    features.append(phone_pos_features)
+    
     return np.concatenate(features)
 
 
-def get_input_dim(context_size: int = 3) -> int:
+def get_input_dim(context_size: int = 3, include_phone_pos: bool = True) -> int:
     """Get input feature dimension for a context size."""
     context_len = 2 * context_size + 1
-    return context_len * NUM_CHARS + 26 * 26 + NUM_CHARS
+    base_dim = context_len * NUM_CHARS + 26 * 26 + NUM_CHARS
+    phone_pos_dim = 8 if include_phone_pos else 0
+    return base_dim + phone_pos_dim
 
 
 class MushroomBody:

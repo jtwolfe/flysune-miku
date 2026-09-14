@@ -324,7 +324,12 @@ def build_confusion_matrix_from_swarm(
     
     for i, pair in enumerate(pairs):
         target = strip_stress(pair.phoneme)
-        predicted, _, _ = swarm.predict(pair.letter_context, vote_strategy=vote_strategy)
+        predicted, _, _ = swarm.predict(
+            pair.letter_context, 
+            vote_strategy=vote_strategy,
+            phoneme_pos=pair.phoneme_pos,
+            n_phonemes=pair.n_phonemes,
+        )
         cm.update(target, predicted)
         
         if verbose and (i + 1) % 5000 == 0:
@@ -336,6 +341,177 @@ def build_confusion_matrix_from_swarm(
     return cm
 
 
+def get_confusion_targets(
+    confusion_matrix: ConfusionMatrix,
+    top_k_confusions: int = 30,
+    min_confusion_count: int = 3,
+    min_confusion_rate: float = 0.05,
+) -> Dict[str, Set[str]]:
+    """
+    Get mapping of target phonemes to their confused predictions.
+    
+    Returns dict: target -> {predicted phonemes it's confused with}
+    Only includes the TARGET side of confusions (T→P), not the reverse.
+    
+    Args:
+        confusion_matrix: Pre-built confusion matrix
+        top_k_confusions: Number of top confusions to consider
+        min_confusion_count: Minimum confusion count to include
+        min_confusion_rate: Minimum confusion rate (fraction) to include
+    
+    Returns:
+        Dict mapping target -> set of confused predictions
+    """
+    target_to_confused: Dict[str, Set[str]] = defaultdict(set)
+    
+    confusions = confusion_matrix.get_top_confusions(
+        top_k=top_k_confusions, 
+        min_count=min_confusion_count,
+    )
+    
+    for cp in confusions:
+        if cp.confusion_rate >= min_confusion_rate:
+            # Only add TARGET → PREDICTED, not reverse
+            # This means: when target=T, it's confused as P
+            target_to_confused[cp.target].add(cp.predicted)
+    
+    return dict(target_to_confused)
+
+
+def identify_hard_samples(
+    pairs: List[AlignedPair],
+    target_to_confused: Dict[str, Set[str]],
+    swarm=None,  # Optional FlySwarm for prediction-based filtering
+    require_prediction_match: bool = False,
+    top_k_predictions: int = 3,
+) -> List[int]:
+    """
+    Identify indices of hard samples that should be oversampled.
+    
+    A sample is hard if:
+    1. Its target phoneme T is in target_to_confused
+    2. (Optional) The swarm's current prediction is one of the confused partners
+    
+    Args:
+        pairs: Training pairs
+        target_to_confused: Dict from get_confusion_targets
+        swarm: Optional FlySwarm for prediction-based filtering
+        require_prediction_match: If True, only mark hard if swarm predicts confused partner
+        top_k_predictions: Check if confused partner is in top-k predictions
+    
+    Returns:
+        List of indices into pairs that are hard
+    """
+    hard_indices = []
+    
+    for i, pair in enumerate(pairs):
+        target = strip_stress(pair.phoneme)
+        
+        # Check if target has known confusions
+        if target not in target_to_confused:
+            continue
+        
+        confused_partners = target_to_confused[target]
+        
+        if require_prediction_match and swarm is not None:
+            # Only mark as hard if swarm actually predicts a confused partner
+            scores = swarm._get_raw_scores(
+                pair.letter_context,
+                phoneme_pos=pair.phoneme_pos,
+                n_phonemes=pair.n_phonemes,
+            )
+            sorted_preds = sorted(scores.items(), key=lambda x: -x[1])[:top_k_predictions]
+            top_k_phones = {p for p, s in sorted_preds}
+            
+            # Check if any confused partner is in top-k
+            if not (confused_partners & top_k_phones):
+                continue
+        
+        hard_indices.append(i)
+    
+    return hard_indices
+
+
+def oversample_hard_negatives(
+    pairs: List[AlignedPair],
+    target_to_confused: Dict[str, Set[str]],
+    swarm=None,
+    require_prediction_match: bool = False,
+    max_oversample_ratio: float = 0.15,
+    rng: Optional[np.random.Generator] = None,
+    verbose: bool = False,
+) -> Tuple[List[AlignedPair], Dict[str, int]]:
+    """
+    Create oversampled training data by duplicating TRUE hard negatives.
+    
+    Only oversamples pairs where:
+    - target=T for a mined confusion (T→P)
+    - NOT when target=P (that would flood with common phonemes)
+    
+    Caps oversample at max_oversample_ratio of original corpus size.
+    
+    Args:
+        pairs: Original training pairs
+        target_to_confused: Dict from get_confusion_targets
+        swarm: Optional FlySwarm for prediction-based filtering
+        require_prediction_match: If True, only oversample if swarm predicts confused partner
+        max_oversample_ratio: Max fraction of corpus to add as duplicates (default 15%)
+        rng: Random generator
+        verbose: Print statistics
+    
+    Returns:
+        (augmented_pairs, stats_dict)
+    """
+    if rng is None:
+        rng = np.random.default_rng(42)
+    
+    # Identify hard samples
+    hard_indices = identify_hard_samples(
+        pairs, target_to_confused, swarm, require_prediction_match
+    )
+    
+    stats = {
+        'original_count': len(pairs),
+        'hard_count': len(hard_indices),
+        'hard_fraction': len(hard_indices) / len(pairs) if pairs else 0,
+    }
+    
+    if verbose:
+        print(f"  Hard samples: {len(hard_indices)}/{len(pairs)} "
+              f"({100*stats['hard_fraction']:.1f}%)")
+    
+    # Cap the number of duplicates
+    max_duplicates = int(len(pairs) * max_oversample_ratio)
+    n_duplicates = min(len(hard_indices), max_duplicates)
+    
+    if n_duplicates > 0:
+        # Sample from hard indices (with replacement if needed)
+        if n_duplicates <= len(hard_indices):
+            dup_indices = rng.choice(hard_indices, size=n_duplicates, replace=False)
+        else:
+            dup_indices = rng.choice(hard_indices, size=n_duplicates, replace=True)
+        
+        duplicates = [pairs[i] for i in dup_indices]
+    else:
+        duplicates = []
+    
+    stats['duplicates_added'] = len(duplicates)
+    stats['final_count'] = len(pairs) + len(duplicates)
+    stats['oversample_ratio'] = len(duplicates) / len(pairs) if pairs else 0
+    
+    if verbose:
+        print(f"  Duplicates added: {len(duplicates)} "
+              f"({100*stats['oversample_ratio']:.1f}% of corpus)")
+    
+    # Combine and shuffle
+    augmented = list(pairs) + duplicates
+    indices = rng.permutation(len(augmented))
+    augmented = [augmented[i] for i in indices]
+    
+    return augmented, stats
+
+
+# Legacy compatibility - kept but deprecated
 def get_hard_negative_weights(
     confusion_matrix: ConfusionMatrix,
     phonemes: List[str],
@@ -344,137 +520,36 @@ def get_hard_negative_weights(
     min_confusion_count: int = 3,
 ) -> Dict[Tuple[str, str], float]:
     """
-    Generate sample weights based on confusion pairs.
+    DEPRECATED: Use get_confusion_targets + oversample_hard_negatives instead.
     
-    Returns a dict mapping (target_phoneme, any_phoneme_in_confusion_pair) to weight.
-    Samples involving confusable pairs get higher weight.
-    
-    Args:
-        confusion_matrix: Pre-built confusion matrix
-        phonemes: List of phonemes in the swarm
-        hard_weight: Weight multiplier for hard pairs
-        top_k_confusions: Number of top confusions to consider
-        min_confusion_count: Minimum confusion count to include
-    
-    Returns:
-        Dict mapping (target, context_phoneme) -> weight
+    This function builds a weight dict but the weights are not properly used.
+    Kept for backward compatibility with known_hard_pairs preset.
     """
     weights: Dict[Tuple[str, str], float] = {}
     
-    # Get top confusions
     confusions = confusion_matrix.get_top_confusions(
         top_k=top_k_confusions, 
         min_count=min_confusion_count,
     )
     
-    # For each confusion pair, upweight both directions
     for cp in confusions:
         target = cp.target
         predicted = cp.predicted
-        
-        # Scale weight by confusion rate (more confused = higher weight)
-        # Use sqrt to moderate the effect
         scaled_weight = hard_weight * (1.0 + np.sqrt(cp.confusion_rate))
-        
-        # When target is actual target, upweight
+        # Only store target->predicted direction now
         weights[(target, predicted)] = scaled_weight
-        weights[(predicted, target)] = scaled_weight
     
     return weights
 
 
-def compute_sample_weights(
-    pairs: List[AlignedPair],
-    hard_weights: Dict[Tuple[str, str], float],
-    base_weight: float = 1.0,
-) -> np.ndarray:
-    """
-    Compute per-sample weights based on hard negatives.
-    
-    A sample's weight is increased if its target phoneme is involved
-    in a known confusable pair with any of its neighboring phonemes
-    or common confusion targets.
-    
-    Args:
-        pairs: Training pairs
-        hard_weights: Dict from get_hard_negative_weights
-        base_weight: Base weight for non-hard samples
-    
-    Returns:
-        Array of weights, one per pair
-    """
-    weights = np.full(len(pairs), base_weight, dtype=np.float32)
-    
-    # Build index of which phonemes each sample involves
-    for i, pair in enumerate(pairs):
-        target = strip_stress(pair.phoneme)
-        
-        # Check if this target is in any hard pair
-        max_weight = base_weight
-        for (t, p), w in hard_weights.items():
-            if t == target or p == target:
-                max_weight = max(max_weight, w)
-        
-        weights[i] = max_weight
-    
-    return weights
-
-
-def oversample_hard_pairs(
-    pairs: List[AlignedPair],
-    hard_weights: Dict[Tuple[str, str], float],
-    oversample_factor: float = 1.5,
-    rng: Optional[np.random.Generator] = None,
-) -> List[AlignedPair]:
-    """
-    Create oversampled training data by duplicating hard samples.
-    
-    Instead of weighting, this physically duplicates samples involving
-    hard pairs. The dopamine-when-wrong learning will then see these
-    cases more often.
-    
-    Args:
-        pairs: Original training pairs
-        hard_weights: Dict from get_hard_negative_weights
-        oversample_factor: How much to oversample (1.5 = 50% more hard samples)
-        rng: Random generator for shuffling duplicates
-    
-    Returns:
-        Augmented list of pairs with hard samples duplicated
-    """
-    if rng is None:
-        rng = np.random.default_rng(42)
-    
-    # Find hard samples
-    hard_pairs = []
-    normal_pairs = []
-    
-    hard_phonemes = set()
-    for (t, p), _ in hard_weights.items():
-        hard_phonemes.add(t)
-        hard_phonemes.add(p)
-    
-    for pair in pairs:
-        target = strip_stress(pair.phoneme)
-        if target in hard_phonemes:
-            hard_pairs.append(pair)
-        else:
-            normal_pairs.append(pair)
-    
-    # Compute how many duplicates to add
-    n_duplicates = int(len(hard_pairs) * (oversample_factor - 1.0))
-    if n_duplicates > 0:
-        duplicate_indices = rng.choice(len(hard_pairs), size=n_duplicates, replace=True)
-        duplicates = [hard_pairs[i] for i in duplicate_indices]
-    else:
-        duplicates = []
-    
-    # Combine and shuffle
-    augmented = normal_pairs + hard_pairs + duplicates
-    indices = rng.permutation(len(augmented))
-    augmented = [augmented[i] for i in indices]
-    
-    return augmented
+def convert_weights_to_targets(
+    hard_weights: Dict[Tuple[str, str], float]
+) -> Dict[str, Set[str]]:
+    """Convert legacy hard_weights dict to target_to_confused format."""
+    target_to_confused: Dict[str, Set[str]] = defaultdict(set)
+    for (target, predicted), _ in hard_weights.items():
+        target_to_confused[target].add(predicted)
+    return dict(target_to_confused)
 
 
 class ConfusionMiner:
@@ -484,26 +559,32 @@ class ConfusionMiner:
     Workflow:
     1. Train initial swarm (or load checkpoint)
     2. Build confusion matrix from predictions
-    3. Identify hard pairs
-    4. Re-train or continue training with hard-negative oversampling
+    3. Identify hard pairs (target→predicted confusions only)
+    4. Re-train with hard-negative oversampling (capped at ~15% of corpus)
+    
+    Key fix from v1: Only oversample when target=T for confusion (T→P),
+    NOT when target=P. This prevents flooding with common phonemes like AH.
     """
     
     def __init__(
         self,
         phonemes: Optional[List[str]] = None,
-        hard_weight: float = 2.0,
-        oversample_factor: float = 1.5,
         top_k_confusions: int = 30,
         min_confusion_count: int = 3,
+        min_confusion_rate: float = 0.05,
+        max_oversample_ratio: float = 0.15,
+        require_prediction_match: bool = False,
     ):
         self.phonemes = phonemes or PHONEME_LIST.copy()
-        self.hard_weight = hard_weight
-        self.oversample_factor = oversample_factor
         self.top_k_confusions = top_k_confusions
         self.min_confusion_count = min_confusion_count
+        self.min_confusion_rate = min_confusion_rate
+        self.max_oversample_ratio = max_oversample_ratio
+        self.require_prediction_match = require_prediction_match
         
         self.confusion_matrix: Optional[ConfusionMatrix] = None
-        self.hard_weights: Dict[Tuple[str, str], float] = {}
+        self.target_to_confused: Dict[str, Set[str]] = {}
+        self.last_stats: Dict[str, Any] = {}
     
     def mine_confusions(
         self,
@@ -528,67 +609,77 @@ class ConfusionMiner:
             swarm, pairs, vote_strategy=vote_strategy, verbose=verbose
         )
         
-        # Compute hard weights
-        self.hard_weights = get_hard_negative_weights(
+        # Get target→confused mappings (only TARGET side, not reverse)
+        self.target_to_confused = get_confusion_targets(
             self.confusion_matrix,
-            self.phonemes,
-            hard_weight=self.hard_weight,
             top_k_confusions=self.top_k_confusions,
             min_confusion_count=self.min_confusion_count,
+            min_confusion_rate=self.min_confusion_rate,
         )
         
         if verbose:
-            print(f"\nIdentified {len(self.hard_weights)} hard phoneme pair entries")
-            top_confusions = self.confusion_matrix.get_top_confusions(top_k=10)
-            if top_confusions:
-                print("Top confusions:")
-                for cp in top_confusions[:5]:
-                    print(f"  {cp.target} → {cp.predicted}: {cp.count} times "
-                          f"({100*cp.confusion_rate:.1f}%)")
+            n_targets = len(self.target_to_confused)
+            n_pairs = sum(len(v) for v in self.target_to_confused.values())
+            print(f"\nIdentified {n_targets} target phonemes with {n_pairs} confusion pairs")
+            print("Target phonemes being confused:")
+            for target, confused in sorted(self.target_to_confused.items())[:10]:
+                confused_str = ', '.join(sorted(confused)[:5])
+                if len(confused) > 5:
+                    confused_str += f"... (+{len(confused)-5} more)"
+                print(f"  {target} → {{{confused_str}}}")
         
         return self.confusion_matrix
     
     def augment_training_data(
         self,
         pairs: List[AlignedPair],
+        swarm=None,  # For prediction-based filtering
         rng: Optional[np.random.Generator] = None,
         verbose: bool = True,
     ) -> List[AlignedPair]:
         """
-        Augment training data by oversampling hard pairs.
+        Augment training data by oversampling TRUE hard negatives.
+        
+        Only oversamples pairs where target=T for a confusion (T→P),
+        NOT when target=P. Capped at max_oversample_ratio.
         
         Args:
             pairs: Original training pairs
+            swarm: Optional FlySwarm for prediction-based filtering
             rng: Random generator
             verbose: Print progress
         
         Returns:
             Augmented training pairs
         """
-        if not self.hard_weights:
+        if not self.target_to_confused:
             if verbose:
-                print("No hard weights computed yet - returning original pairs")
+                print("No confusions mined yet - returning original pairs")
             return pairs
         
-        augmented = oversample_hard_pairs(
+        augmented, stats = oversample_hard_negatives(
             pairs,
-            self.hard_weights,
-            oversample_factor=self.oversample_factor,
+            self.target_to_confused,
+            swarm=swarm if self.require_prediction_match else None,
+            require_prediction_match=self.require_prediction_match,
+            max_oversample_ratio=self.max_oversample_ratio,
             rng=rng,
+            verbose=verbose,
         )
         
+        self.last_stats = stats
+        
         if verbose:
-            print(f"Augmented training data: {len(pairs)} → {len(augmented)} pairs "
-                  f"(+{len(augmented) - len(pairs)})")
+            print(f"Augmented: {stats['original_count']} → {stats['final_count']} pairs")
         
         return augmented
     
-    def get_sample_weights(
-        self, 
-        pairs: List[AlignedPair],
-    ) -> np.ndarray:
-        """Get per-sample weights for weighted training."""
-        return compute_sample_weights(pairs, self.hard_weights)
+    def get_hard_fraction(self, pairs: List[AlignedPair]) -> float:
+        """Get fraction of pairs that would be marked as hard."""
+        if not self.target_to_confused:
+            return 0.0
+        hard_indices = identify_hard_samples(pairs, self.target_to_confused)
+        return len(hard_indices) / len(pairs) if pairs else 0.0
     
     def save_report(self, path: str):
         """Save confusion report to file."""
@@ -601,20 +692,38 @@ class ConfusionMiner:
             min_count=self.min_confusion_count,
         )
         
+        # Add mining stats
+        lines = [report, "", "MINING CONFIGURATION:", "-" * 40]
+        lines.append(f"  max_oversample_ratio: {self.max_oversample_ratio}")
+        lines.append(f"  min_confusion_rate: {self.min_confusion_rate}")
+        lines.append(f"  require_prediction_match: {self.require_prediction_match}")
+        lines.append(f"  target phonemes with confusions: {len(self.target_to_confused)}")
+        
+        if self.last_stats:
+            lines.append("")
+            lines.append("LAST AUGMENTATION STATS:")
+            for k, v in self.last_stats.items():
+                if isinstance(v, float):
+                    lines.append(f"  {k}: {v:.4f}")
+                else:
+                    lines.append(f"  {k}: {v}")
+        
         with open(path, 'w') as f:
-            f.write(report)
+            f.write("\n".join(lines))
         print(f"Confusion report saved to {path}")
     
     def to_dict(self) -> Dict:
         """Serialize state."""
         return {
             'phonemes': self.phonemes,
-            'hard_weight': self.hard_weight,
-            'oversample_factor': self.oversample_factor,
             'top_k_confusions': self.top_k_confusions,
             'min_confusion_count': self.min_confusion_count,
+            'min_confusion_rate': self.min_confusion_rate,
+            'max_oversample_ratio': self.max_oversample_ratio,
+            'require_prediction_match': self.require_prediction_match,
             'confusion_matrix': self.confusion_matrix.to_dict() if self.confusion_matrix else None,
-            'hard_weights': {f"{t}|{p}": w for (t, p), w in self.hard_weights.items()},
+            'target_to_confused': {t: list(ps) for t, ps in self.target_to_confused.items()},
+            'last_stats': self.last_stats,
         }
     
     @classmethod
@@ -622,44 +731,58 @@ class ConfusionMiner:
         """Deserialize from dict."""
         miner = cls(
             phonemes=d.get('phonemes'),
-            hard_weight=d.get('hard_weight', 2.0),
-            oversample_factor=d.get('oversample_factor', 1.5),
             top_k_confusions=d.get('top_k_confusions', 30),
             min_confusion_count=d.get('min_confusion_count', 3),
+            min_confusion_rate=d.get('min_confusion_rate', 0.05),
+            max_oversample_ratio=d.get('max_oversample_ratio', 0.15),
+            require_prediction_match=d.get('require_prediction_match', False),
         )
         if d.get('confusion_matrix'):
             miner.confusion_matrix = ConfusionMatrix.from_dict(d['confusion_matrix'])
-        for key, w in d.get('hard_weights', {}).items():
-            t, p = key.split('|')
-            miner.hard_weights[(t, p)] = w
+        for target, confused_list in d.get('target_to_confused', {}).items():
+            miner.target_to_confused[target] = set(confused_list)
+        miner.last_stats = d.get('last_stats', {})
         return miner
 
 
 # Pre-defined known hard pairs from the task description
+# Format: (target, predicted) - target is what it SHOULD be, predicted is the error
 KNOWN_HARD_PAIRS = [
     ('IY', 'EH'),   # me: M IY → M EH
+    ('IY', 'IH'),   # common IY confusion
     ('AE', 'AA'),   # vowel confusion
+    ('AE', 'AH'),   # vowel confusion (very common)
+    ('AA', 'AH'),   # vowel confusion (very common)
     ('AY', 'IY'),   # diphthong vs vowel
     ('AY', 'EH'),   # diphthong vs vowel
-    # Common vowel confusions
     ('IH', 'EH'),   # short i vs short e
-    ('AH', 'UH'),   # schwa area
+    ('IH', 'AH'),   # common schwa confusion
     ('AO', 'AA'),   # open back vowels
+    ('Z', 'S'),     # voicing confusion
 ]
 
 
+def get_known_hard_targets() -> Dict[str, Set[str]]:
+    """
+    Get target→confused mappings for known hard pairs (from task spec).
+    
+    Can be used as a starting point before mining or as fallback.
+    Returns dict: target -> {predicted phonemes it's confused with}
+    """
+    target_to_confused: Dict[str, Set[str]] = defaultdict(set)
+    for target, predicted in KNOWN_HARD_PAIRS:
+        target_to_confused[target].add(predicted)
+    return dict(target_to_confused)
+
+
+# Legacy compatibility
 def get_known_hard_weights(
     hard_weight: float = 2.0,
 ) -> Dict[Tuple[str, str], float]:
-    """
-    Get hard weights for known confusable pairs (from task spec).
-    
-    Can be used as a starting point before mining or as fallback.
-    """
+    """DEPRECATED: Use get_known_hard_targets instead."""
     weights = {}
-    for p1, p2 in KNOWN_HARD_PAIRS:
-        weights[(p1, p2)] = hard_weight
-        weights[(p2, p1)] = hard_weight
+    for target, predicted in KNOWN_HARD_PAIRS:
+        weights[(target, predicted)] = hard_weight
     return weights
 
 

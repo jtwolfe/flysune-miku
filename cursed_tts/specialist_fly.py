@@ -73,7 +73,7 @@ class SharedExpansion:
     
     def __init__(self, config: SpecialistConfig, rng: np.random.Generator):
         self.config = config
-        self.input_dim = get_input_dim(config.context_size)
+        self.input_dim = get_input_dim(config.context_size, include_phone_pos=True)
         
         # Input → PN projection (random, normalized)
         self.input_to_pn = rng.standard_normal(
@@ -92,9 +92,25 @@ class SharedExpansion:
             )
             self.pn_kc_weights[connected_pns, kc] = 1.0 / config.pn_per_kc
     
-    def encode_to_kc(self, letter_context: str) -> np.ndarray:
-        """Transform letter context to sparse KC activity."""
-        input_features = encode_letter_context(letter_context)
+    def encode_to_kc(
+        self, 
+        letter_context: str,
+        phoneme_pos: float = None,
+        n_phonemes: int = None,
+    ) -> np.ndarray:
+        """
+        Transform letter context to sparse KC activity.
+        
+        Args:
+            letter_context: Letter context string
+            phoneme_pos: Normalized phoneme position [0, 1] for short-word disambiguation
+            n_phonemes: Total phonemes in word
+        """
+        input_features = encode_letter_context(
+            letter_context, 
+            phoneme_pos=phoneme_pos,
+            n_phonemes=n_phonemes,
+        )
         
         # PN activity
         pn_raw = input_features @ self.input_to_pn
@@ -169,9 +185,16 @@ class SpecialistFly:
         
         return is_yes, confidence, mbon_input
     
-    def predict(self, letter_context: str) -> Tuple[bool, float]:
+    def predict(
+        self, 
+        letter_context: str,
+        phoneme_pos: float = None,
+        n_phonemes: int = None,
+    ) -> Tuple[bool, float]:
         """Predict YES/NO for this context."""
-        kc_activity = self.shared.encode_to_kc(letter_context)
+        kc_activity = self.shared.encode_to_kc(
+            letter_context, phoneme_pos=phoneme_pos, n_phonemes=n_phonemes
+        )
         is_yes, confidence, _ = self.forward(kc_activity)
         return is_yes, confidence
     
@@ -202,7 +225,11 @@ class SpecialistFly:
         )
     
     def train_step(
-        self, letter_context: str, actual_phoneme: str
+        self, 
+        letter_context: str, 
+        actual_phoneme: str,
+        phoneme_pos: float = None,
+        n_phonemes: int = None,
     ) -> Tuple[bool, bool, float]:
         """
         Train on one example.
@@ -210,6 +237,8 @@ class SpecialistFly:
         Args:
             letter_context: Input context
             actual_phoneme: The actual phoneme for this context
+            phoneme_pos: Normalized phoneme position [0, 1]
+            n_phonemes: Total phonemes in word
         
         Returns:
             is_correct: Whether prediction was correct
@@ -219,7 +248,9 @@ class SpecialistFly:
         actual = strip_stress(actual_phoneme)
         target_yes = (actual == self.target_phoneme)
         
-        kc_activity = self.shared.encode_to_kc(letter_context)
+        kc_activity = self.shared.encode_to_kc(
+            letter_context, phoneme_pos=phoneme_pos, n_phonemes=n_phonemes
+        )
         predicted_yes, confidence, _ = self.forward(kc_activity)
         
         is_correct = (predicted_yes == target_yes)
@@ -433,9 +464,16 @@ class FlySwarm:
         print(f"  Vote strategy: {self.config.vote_strategy} "
               f"(temp={self.config.vote_temperature}, margin={self.config.vote_margin})")
     
-    def _get_raw_scores(self, letter_context: str) -> Dict[str, float]:
+    def _get_raw_scores(
+        self, 
+        letter_context: str,
+        phoneme_pos: float = None,
+        n_phonemes: int = None,
+    ) -> Dict[str, float]:
         """Get raw YES confidence scores from all specialists."""
-        kc_activity = self.shared.encode_to_kc(letter_context)
+        kc_activity = self.shared.encode_to_kc(
+            letter_context, phoneme_pos=phoneme_pos, n_phonemes=n_phonemes
+        )
         
         scores = {}
         for phoneme, specialist in self.specialists.items():
@@ -542,6 +580,8 @@ class FlySwarm:
         self, 
         letter_context: str,
         vote_strategy: Optional[str] = None,
+        phoneme_pos: float = None,
+        n_phonemes: int = None,
     ) -> Tuple[str, float, Dict[str, float]]:
         """
         Predict phoneme by ensemble voting with configurable arbitrator.
@@ -549,13 +589,15 @@ class FlySwarm:
         Args:
             letter_context: Input context string
             vote_strategy: Override config vote strategy (argmax/softmax/margin/calibrated)
+            phoneme_pos: Normalized phoneme position [0, 1] for disambiguation
+            n_phonemes: Total phonemes in word
         
         Returns:
             phoneme: Predicted phoneme
             confidence: Winning confidence/probability
             all_scores: Dict mapping phonemes to their raw YES scores
         """
-        scores = self._get_raw_scores(letter_context)
+        scores = self._get_raw_scores(letter_context, phoneme_pos=phoneme_pos, n_phonemes=n_phonemes)
         
         strategy = vote_strategy or self.config.vote_strategy
         
@@ -597,7 +639,12 @@ class FlySwarm:
             if target not in self.phoneme_list:
                 continue
             
-            scores = self._get_raw_scores(pair.letter_context)
+            # Use phoneme position for better calibration
+            scores = self._get_raw_scores(
+                pair.letter_context, 
+                phoneme_pos=pair.phoneme_pos,
+                n_phonemes=pair.n_phonemes,
+            )
             
             # For each phoneme, record its score and whether it's the correct target
             for phoneme, score in scores.items():
@@ -656,8 +703,10 @@ class FlySwarm:
         for p_idx in range(n_phonemes):
             if n_phonemes == 1:
                 letter_pos = n_letters // 2
+                phoneme_pos = 0.5
             else:
                 letter_pos = int(round(p_idx * (n_letters - 1) / (n_phonemes - 1)))
+                phoneme_pos = p_idx / (n_phonemes - 1)
             letter_pos = max(0, min(letter_pos, n_letters - 1))
             
             context_chars = []
@@ -669,7 +718,12 @@ class FlySwarm:
                     context_chars.append('_')
             letter_context = ''.join(context_chars)
             
-            phoneme, _, _ = self.predict(letter_context, vote_strategy=vote_strategy)
+            phoneme, _, _ = self.predict(
+                letter_context, 
+                vote_strategy=vote_strategy,
+                phoneme_pos=phoneme_pos,
+                n_phonemes=n_phonemes,
+            )
             phonemes.append(phoneme)
         
         return phonemes
@@ -721,11 +775,23 @@ class FlySwarm:
         )
         return phonemes
     
-    def train_step(self, letter_context: str, correct_phoneme: str) -> Tuple[bool, str]:
+    def train_step(
+        self, 
+        letter_context: str, 
+        correct_phoneme: str,
+        phoneme_pos: float = None,
+        n_phonemes: int = None,
+    ) -> Tuple[bool, str]:
         """
         Train all specialists on one example.
         
         Each specialist learns whether this context is/isn't its target phoneme.
+        
+        Args:
+            letter_context: Input context
+            correct_phoneme: Target phoneme
+            phoneme_pos: Normalized phoneme position [0, 1]
+            n_phonemes: Total phonemes in word
         
         Returns:
             is_correct: Whether ensemble prediction was correct
@@ -733,12 +799,17 @@ class FlySwarm:
         """
         correct = strip_stress(correct_phoneme)
         
-        # Train each specialist
+        # Train each specialist with position info
         for phoneme, specialist in self.specialists.items():
-            specialist.train_step(letter_context, correct)
+            specialist.train_step(
+                letter_context, correct,
+                phoneme_pos=phoneme_pos, n_phonemes=n_phonemes,
+            )
         
         # Get ensemble prediction for accuracy tracking
-        predicted, _, _ = self.predict(letter_context)
+        predicted, _, _ = self.predict(
+            letter_context, phoneme_pos=phoneme_pos, n_phonemes=n_phonemes
+        )
         is_correct = (predicted == correct)
         
         return is_correct, predicted

@@ -29,7 +29,7 @@ from .phonemes import PHONEME_LIST, strip_stress, NUM_PHONEMES
 from .lexicon import get_phonemes, get_demo_words, get_lexicon
 from .confusion_mining import (
     ConfusionMiner, ConfusionMatrix, build_confusion_matrix_from_swarm,
-    get_known_hard_weights, KNOWN_HARD_PAIRS,
+    get_known_hard_targets, KNOWN_HARD_PAIRS,
 )
 
 
@@ -54,7 +54,12 @@ def train_swarm_epoch(
     
     for i, idx in enumerate(indices):
         pair = train_pairs[idx]
-        is_correct, _ = swarm.train_step(pair.letter_context, pair.phoneme)
+        # Pass phoneme position for short-word disambiguation
+        is_correct, _ = swarm.train_step(
+            pair.letter_context, pair.phoneme,
+            phoneme_pos=pair.phoneme_pos,
+            n_phonemes=pair.n_phonemes,
+        )
         
         if is_correct:
             correct += 1
@@ -85,7 +90,11 @@ def evaluate_swarm_pairs(
     
     for pair in pairs:
         target = strip_stress(pair.phoneme)
-        predicted, _, _ = swarm.predict(pair.letter_context)
+        predicted, _, _ = swarm.predict(
+            pair.letter_context,
+            phoneme_pos=pair.phoneme_pos,
+            n_phonemes=pair.n_phonemes,
+        )
         
         is_correct = (predicted == target)
         if is_correct:
@@ -286,15 +295,15 @@ def train_swarm(
     if confusion_mine or use_known_hard_pairs:
         confusion_miner = ConfusionMiner(
             phonemes=list(phoneme_set),
-            hard_weight=hard_negative_weight,
-            oversample_factor=oversample_factor,
+            max_oversample_ratio=0.15,  # Cap at 15% of corpus
+            min_confusion_rate=0.05,    # Only include >5% confusion rate
         )
         
         # Pre-populate with known hard pairs if requested
         if use_known_hard_pairs:
             if verbose:
                 print(f"Using {len(KNOWN_HARD_PAIRS)} known hard pairs for oversampling")
-            confusion_miner.hard_weights = get_known_hard_weights(hard_negative_weight)
+            confusion_miner.target_to_confused = get_known_hard_targets()
     
     # Track original training pairs for mining
     original_train_pairs = train_pairs_filtered.copy()
@@ -373,9 +382,14 @@ def train_swarm(
                 swarm, test_pairs_filtered, vote_strategy=vote_strategy, verbose=verbose
             )
             
-            # Augment training data with hard negatives
+            # Check hard fraction BEFORE augmentation
+            hard_frac_before = confusion_miner.get_hard_fraction(original_train_pairs)
+            if verbose:
+                print(f"  Hard fraction in train: {100*hard_frac_before:.1f}%")
+            
+            # Augment training data with TRUE hard negatives (capped at 15%)
             train_pairs_filtered = confusion_miner.augment_training_data(
-                original_train_pairs, rng=rng, verbose=verbose
+                original_train_pairs, swarm=swarm, rng=rng, verbose=verbose
             )
             
             # Save confusion report if requested
@@ -391,6 +405,8 @@ def train_swarm(
         if use_known_hard_pairs and epoch == 1 and confusion_miner and not confusion_mined:
             if verbose:
                 print("Applying known hard pair oversampling...")
+                hard_frac = confusion_miner.get_hard_fraction(original_train_pairs)
+                print(f"  Hard fraction in train: {100*hard_frac:.1f}%")
             train_pairs_filtered = confusion_miner.augment_training_data(
                 original_train_pairs, rng=rng, verbose=verbose
             )
@@ -455,7 +471,10 @@ def train_swarm(
     if confusion_mined and confusion_miner:
         history['confusion_mined'] = True
         history['confusion_mine_epoch'] = confusion_mine_epoch if confusion_mine else 0
-        history['hard_pairs_count'] = len(confusion_miner.hard_weights)
+        history['hard_pairs_count'] = len(confusion_miner.target_to_confused)
+        if confusion_miner.last_stats:
+            history['hard_fraction'] = confusion_miner.last_stats.get('hard_fraction', 0)
+            history['oversample_ratio'] = confusion_miner.last_stats.get('oversample_ratio', 0)
         
         # Final confusion report
         if confusion_report_path and confusion_miner.confusion_matrix:
