@@ -253,9 +253,17 @@ python -m cursed_tts speak-two-swarm-demo
 | `sample` | Plays carefully sliced Marian crumbs (when available) |
 
 ```bash
-# Train with Marian voicebank targets
-python -m cursed_tts train-speaker-flies --mode marian-fit --marian-dir data/marian_crumbs
+# Fit speakers to Marian ILUSTRADO crumbs (this PR)
+python -m cursed_tts train-speaker-flies --mode marian-fit \
+  --voicebank /path/to/MARIAN\ ILUSTRADO\ Series --iterations 50
+
+# Formant self-targets if the voicebank is unavailable
+python -m cursed_tts train-speaker-flies --mode formant-bootstrap
 ```
+
+This PR downloaded MARIAN (ILUSTRADO) from https://downloadmarian.carrd.co/,
+sliced duration-capped crumbs (`data/marian_crumbs/`, attribution in `data/NOTICE`),
+and fitted `model_speaker.npz`. `ZH` had no oto alias and used a formant target.
 
 ### Verification
 

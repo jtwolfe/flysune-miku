@@ -366,6 +366,53 @@ class TestTrainSpeaker:
         assert 50 <= params.duration_ms <= 300, f"Duration out of range: {params.duration_ms}"
 
 
+class TestMarianAliasAndCaps:
+    """Marian alias resolution and oto duration caps (no KC, no full voicebank required)."""
+
+    def test_resolve_prefers_standalone_then_onset(self):
+        from cursed_tts.train_speaker import resolve_marian_alias
+
+        aliases = ['k aa', '- k', 'k', 'aa k']
+        assert resolve_marian_alias('K', aliases) == 'k'
+
+        aliases_no_stand = ['k aa', '- k', 'aa k']
+        assert resolve_marian_alias('K', aliases_no_stand) == '- k'
+
+        aliases_digits = ['iy1', 'iy aa', '- iy']
+        assert resolve_marian_alias('IY', aliases_digits) == 'iy1'
+
+    def test_oto_window_is_capped(self):
+        from cursed_tts.train_speaker import (
+            oto_window_ms, MARIAN_CRUMB_MIN_MS, MARIAN_CRUMB_MAX_MS,
+        )
+
+        # Huge negative cutoff must still cap
+        start, length = oto_window_ms(
+            {'offset_ms': 100.0, 'consonant_ms': 900.0, 'cutoff_ms': -2000.0},
+            wav_duration_ms=5000.0,
+        )
+        assert start == 100.0
+        assert MARIAN_CRUMB_MIN_MS <= length <= MARIAN_CRUMB_MAX_MS
+
+        # Tiny window is lifted to the minimum
+        start, length = oto_window_ms(
+            {'offset_ms': 10.0, 'consonant_ms': 5.0, 'cutoff_ms': -20.0},
+            wav_duration_ms=1000.0,
+        )
+        assert length >= MARIAN_CRUMB_MIN_MS
+
+    def test_speaker_train_has_no_kc_imports(self):
+        import cursed_tts.train_speaker as ts
+        import cursed_tts.speaker_fly as sf
+        assert not hasattr(ts, 'encode_to_kc')
+        assert not hasattr(sf, 'encode_to_kc')
+        assert 'mushroom_body' not in getattr(ts, '__file__', '')
+        # Training/synth modules must not import picker KC machinery
+        assert 'cursed_tts.mushroom_body' not in getattr(ts, '__dict__', {})
+        assert 'cursed_tts.specialist_fly' not in ts.__dict__
+        assert 'cursed_tts.more_fly' not in ts.__dict__
+
+
 # Integration test
 class TestIntegration:
     """End-to-end integration tests."""

@@ -28,13 +28,242 @@ from pathlib import Path
 import json
 from dataclasses import dataclass
 
-from .phonemes import PHONEME_LIST, strip_stress, phoneme_to_index, NUM_PHONEMES
+from .phonemes import (
+    PHONEME_LIST, strip_stress, phoneme_to_index, NUM_PHONEMES,
+    VOWELS, CONSONANTS,
+)
 from .speaker_fly import (
     SpeakerSwarm, SpeakerSwarmConfig, SpeakerParams, SpeakerFly,
     SPEAKER_DURATION_MIN_MS, SPEAKER_DURATION_MAX_MS, SAMPLE_RATE,
     _get_default_params_for_phoneme
 )
-from .synth import save_wav
+from .synth import save_wav, _make_envelope
+
+
+# ARPAbet → Arpasing lowercase (MARIAN ILUSTRADO / OpenUtau EN ARPA)
+ARPABET_TO_ARPASING = {
+    'AA': 'aa', 'AE': 'ae', 'AH': 'ah', 'AO': 'ao', 'EH': 'eh',
+    'ER': 'er', 'IH': 'ih', 'IY': 'iy', 'UH': 'uh', 'UW': 'uw',
+    'AW': 'aw', 'AY': 'ay', 'EY': 'ey', 'OW': 'ow', 'OY': 'oy',
+    'P': 'p', 'B': 'b', 'T': 't', 'D': 'd', 'K': 'k', 'G': 'g',
+    'CH': 'ch', 'JH': 'jh',
+    'F': 'f', 'V': 'v', 'TH': 'th', 'DH': 'dh', 'S': 's', 'Z': 'z',
+    'SH': 'sh', 'ZH': 'zh', 'HH': 'hh',
+    'M': 'm', 'N': 'n', 'NG': 'ng',
+    'L': 'l', 'R': 'r',
+    'W': 'w', 'Y': 'y',
+}
+
+# Cap extracted oto windows (PR #5/#6 concatenative crumbs were too long)
+MARIAN_CRUMB_MIN_MS = 80.0
+MARIAN_CRUMB_MAX_MS = 250.0
+MARIAN_VOWEL_TARGET_MS = 200.0
+MARIAN_CONSONANT_TARGET_MS = 140.0
+
+
+def _strip_alias_digits(alias: str) -> str:
+    """Strip trailing digits from Arpasing aliases (iy1 → iy)."""
+    return alias.rstrip('0123456789').strip()
+
+
+def parse_oto_ini(oto_path: Path) -> List[Dict[str, Any]]:
+    """
+    Parse a UTAU oto.ini into crumb windows.
+
+    Format: filename=alias,offset,consonant,cutoff,preutterance,overlap
+    Times are milliseconds. Negative cutoff means length from offset.
+    """
+    entries = []
+    text = Path(oto_path).read_text(encoding='utf-8', errors='replace')
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or '=' not in line or line.startswith('#'):
+            continue
+        left, right = line.split('=', 1)
+        parts = [p.strip() for p in right.split(',')]
+        if len(parts) < 4:
+            continue
+        try:
+            offset = float(parts[1])
+            consonant = float(parts[2])
+            cutoff = float(parts[3])
+        except ValueError:
+            continue
+        entries.append({
+            'wav': left.strip(),
+            'alias': parts[0],
+            'alias_base': _strip_alias_digits(parts[0]),
+            'offset_ms': offset,
+            'consonant_ms': consonant,
+            'cutoff_ms': cutoff,
+        })
+    return entries
+
+
+def oto_window_ms(entry: Dict[str, Any], wav_duration_ms: float) -> Tuple[float, float]:
+    """
+    Compute start/length for an oto entry, then cap to 80–250ms.
+
+    Returns (start_ms, length_ms).
+    """
+    start = max(0.0, entry['offset_ms'])
+    cutoff = entry['cutoff_ms']
+    if cutoff < 0:
+        raw_len = abs(cutoff)
+    else:
+        raw_len = max(0.0, wav_duration_ms - cutoff - start)
+
+    # Prefer the unstretched consonant window when it is a reasonable crumb
+    cons = entry.get('consonant_ms', 0.0)
+    if MARIAN_CRUMB_MIN_MS <= cons <= MARIAN_CRUMB_MAX_MS:
+        raw_len = min(raw_len, cons) if raw_len > 0 else cons
+
+    length = max(MARIAN_CRUMB_MIN_MS, min(MARIAN_CRUMB_MAX_MS, raw_len if raw_len > 0 else MARIAN_CRUMB_MIN_MS))
+    if start + length > wav_duration_ms and wav_duration_ms > start:
+        length = wav_duration_ms - start
+    return start, length
+
+
+def resolve_marian_alias(
+    phoneme: str,
+    aliases: List[str],
+) -> Optional[str]:
+    """
+    Pick the best Marian/Arpasing alias for an ARPAbet phone.
+
+    Preference (PR #5/#6-style):
+      1. standalone (`aa`, `k`)
+      2. onset (`- k` / `- aa`)
+      3. release (`k -` / `aa -`)
+      4. CV first phone (`k aa`) or VC second phone (`aa k`)
+    """
+    p = strip_stress(phoneme)
+    arp = ARPABET_TO_ARPASING.get(p, p.lower())
+    available = {_strip_alias_digits(a): a for a in aliases}
+
+    candidates = [
+        arp,
+        f'- {arp}',
+        f'{arp} -',
+    ]
+    # diphone variants: prefer ones that start with this phone
+    diphones = []
+    for base, original in available.items():
+        tokens = base.split()
+        if len(tokens) == 2 and tokens[0] == arp and tokens[1] != '-':
+            diphones.append(original)
+        elif len(tokens) == 2 and tokens[1] == arp and tokens[0] != '-':
+            diphones.append(original)
+    candidates.extend(diphones)
+
+    for cand in candidates:
+        key = _strip_alias_digits(cand)
+        if key in available:
+            return available[key]
+    return None
+
+
+def _read_wav(path: Path) -> Tuple[np.ndarray, int]:
+    import wave
+    with wave.open(str(path), 'r') as wf:
+        frames = wf.readframes(wf.getnframes())
+        nch = wf.getnchannels()
+        audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        if nch > 1:
+            audio = audio.reshape(-1, nch).mean(axis=1)
+        return audio.astype(np.float32), wf.getframerate()
+
+
+def extract_marian_crumbs(
+    voicebank_dir: str,
+    output_dir: str = 'data/marian_crumbs',
+    duration_cap_ms: float = MARIAN_CRUMB_MAX_MS,
+    verbose: bool = True,
+) -> Dict[str, str]:
+    """
+    Slice duration-capped Marian crumbs from an ILUSTRADO oto.ini.
+
+    Does NOT concatenate diphone windows (that failed in PR #5).
+    Each ARPAbet phone gets one carefully chosen, capped crumb.
+    """
+    vb = Path(voicebank_dir)
+    oto_candidates = list(vb.rglob('oto.ini'))
+    # Prefer the ARPAsing folder, skip breathes
+    oto_candidates = [p for p in oto_candidates if 'breathe' not in str(p).lower()]
+    if not oto_candidates:
+        raise FileNotFoundError(f'No oto.ini under {vb}')
+    oto_path = oto_candidates[0]
+    wav_dir = oto_path.parent
+
+    entries = parse_oto_ini(oto_path)
+    aliases = [e['alias'] for e in entries]
+    by_alias = {e['alias']: e for e in entries}
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    mapping = {}
+    if verbose:
+        print(f'Extracting Marian crumbs from {oto_path}')
+        print(f'  {len(entries)} oto entries → cap {MARIAN_CRUMB_MIN_MS:.0f}–{duration_cap_ms:.0f}ms')
+
+    wav_cache: Dict[str, Tuple[np.ndarray, int]] = {}
+
+    for phoneme in PHONEME_LIST:
+        alias = resolve_marian_alias(phoneme, aliases)
+        if alias is None or alias not in by_alias:
+            if verbose:
+                print(f'  {phoneme}: no alias (will formant-bootstrap)')
+            continue
+
+        entry = by_alias[alias]
+        wav_path = wav_dir / entry['wav']
+        if not wav_path.exists():
+            if verbose:
+                print(f'  {phoneme}: missing wav {entry["wav"]}')
+            continue
+
+        if entry['wav'] not in wav_cache:
+            wav_cache[entry['wav']] = _read_wav(wav_path)
+        audio, sr = wav_cache[entry['wav']]
+        dur_ms = 1000.0 * len(audio) / sr
+        start_ms, length_ms = oto_window_ms(entry, dur_ms)
+
+        # Type-aware target, still hard-capped
+        target = MARIAN_VOWEL_TARGET_MS if phoneme in VOWELS else MARIAN_CONSONANT_TARGET_MS
+        length_ms = max(MARIAN_CRUMB_MIN_MS, min(duration_cap_ms, min(length_ms, target) if length_ms > target else length_ms))
+
+        start = int(start_ms / 1000.0 * sr)
+        n = int(length_ms / 1000.0 * sr)
+        crumb = audio[start:start + n]
+        if len(crumb) < 16:
+            if verbose:
+                print(f'  {phoneme}: empty slice ({alias})')
+            continue
+
+        if sr != SAMPLE_RATE:
+            ratio = SAMPLE_RATE / sr
+            new_len = max(1, int(len(crumb) * ratio))
+            crumb = np.interp(np.linspace(0, len(crumb), new_len), np.arange(len(crumb)), crumb).astype(np.float32)
+
+        crumb = crumb * _make_envelope(len(crumb), attack=0.01, release=0.02)
+        if np.abs(crumb).max() > 0:
+            crumb = crumb / np.abs(crumb).max() * 0.85
+
+        dest = out / f'{phoneme}.wav'
+        save_wav(crumb, str(dest), SAMPLE_RATE)
+        mapping[phoneme] = {
+            'alias': alias,
+            'wav': entry['wav'],
+            'duration_ms': 1000.0 * len(crumb) / SAMPLE_RATE,
+        }
+        if verbose:
+            print(f'  {phoneme}: alias={alias!r} {mapping[phoneme]["duration_ms"]:.0f}ms')
+
+    (out / 'mapping.json').write_text(json.dumps(mapping, indent=2))
+    if verbose:
+        print(f'Extracted {len(mapping)}/{len(PHONEME_LIST)} crumbs → {out}')
+    return {p: str(out / f'{p}.wav') for p in mapping}
 
 
 @dataclass

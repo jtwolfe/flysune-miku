@@ -255,19 +255,66 @@ class TwoSwarmSpeaker:
         
         return result, all_phonemes
     
+    TWO_SWARM_WORDS = [
+        'cat', 'bat', 'dog', 'go', 'no', 'hi', 'bye', 'yes', 'me', 'you',
+        'hello', 'world', 'mushroom', 'connectome', 'chaos', 'hatsune',
+        'australia', 'neural', 'phoneme', 'cursed', 'flywire', 'kenyon',
+    ]
+    TWO_SWARM_SENTENCES = [
+        'hello world',
+        'the cat sat on the mat',
+        'yes me too',
+        'dogs go and cats bat',
+    ]
+    TWO_SWARM_PARAGRAPH = (
+        'the cat sat on the mat. yes it did. me too. '
+        'hello world this is a test of speaking flies.'
+    )
+
     def speak_demo(
         self,
         output_dir: str = "artifacts/eval/two_swarm",
         verbose: bool = True,
     ) -> Dict[str, Dict]:
         """Speak demo words using two-swarm pipeline."""
-        demo_words = [
-            'cat', 'bat', 'dog', 'go', 'no', 'hi', 'bye', 'yes', 'me', 'you',
-            'mushroom', 'connectome', 'chaos', 'hatsune', 'australia',
-            'neural', 'phoneme', 'cursed', 'flywire', 'kenyon'
-        ]
-        
-        return self._speak_wordlist(demo_words, output_dir, verbose)
+        return self._speak_wordlist(self.TWO_SWARM_WORDS, output_dir, verbose)
+
+    def speak_eval_suite(
+        self,
+        output_dir: str = "artifacts/eval/two_swarm",
+        verbose: bool = True,
+    ) -> Dict[str, Any]:
+        """Words + short sentences + one 3–4 sentence paragraph."""
+        output_dir = Path(output_dir)
+        words_dir = output_dir / "words"
+        sent_dir = output_dir / "sentences"
+        words_dir.mkdir(parents=True, exist_ok=True)
+        sent_dir.mkdir(parents=True, exist_ok=True)
+
+        results = {
+            'words': self._speak_wordlist(self.TWO_SWARM_WORDS, str(words_dir), verbose),
+            'sentences': {},
+        }
+
+        for i, text in enumerate(self.TWO_SWARM_SENTENCES, 1):
+            slug = '_'.join(c for c in text.split() if c.isalpha())[:40]
+            path = sent_dir / f"s{i}_{slug}.wav"
+            audio, phones = self.speak_sequence(text, str(path), verbose=verbose)
+            results['sentences'][text] = {
+                'path': str(path),
+                'phonemes': phones,
+            }
+
+        para_path = output_dir / "paragraph_four_sentences.wav"
+        audio, phones = self.speak_sequence(
+            self.TWO_SWARM_PARAGRAPH, str(para_path), verbose=verbose
+        )
+        results['paragraph'] = {
+            'text': self.TWO_SWARM_PARAGRAPH,
+            'path': str(para_path),
+            'phonemes': phones,
+        }
+        return results
     
     def _speak_wordlist(
         self,
@@ -340,6 +387,7 @@ def compare_two_swarm_vs_formant(
     speaker_path: str,
     output_dir: str = "artifacts/eval/two_swarm/comparison",
     verbose: bool = True,
+    picker_type: str = 'swarm',
 ) -> Dict[str, Dict]:
     """
     Generate comparison: two-swarm speakers vs formant baseline.
@@ -357,9 +405,12 @@ def compare_two_swarm_vs_formant(
         print("Generating two-swarm comparison demos")
         print("=" * 60)
     
-    # Load speakers
-    speaker_mode = TwoSwarmSpeaker.from_model_files(picker_path, speaker_path, False)
-    formant_mode = TwoSwarmSpeaker.from_model_files(picker_path, None, True)
+    speaker_mode = TwoSwarmSpeaker.from_model_files(
+        picker_path, speaker_path, False, picker_type=picker_type
+    )
+    formant_mode = TwoSwarmSpeaker.from_model_files(
+        picker_path, None, True, picker_type=picker_type
+    )
     
     results = {}
     
