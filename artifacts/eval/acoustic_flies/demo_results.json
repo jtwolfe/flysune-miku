@@ -1,0 +1,1042 @@
+{
+  "formant": {
+    "cat": {
+      "phonemes": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "match": 1.0
+    },
+    "dog": {
+      "phonemes": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "reference": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "match": 1.0
+    },
+    "hi": {
+      "phonemes": [
+        "HH",
+        "AY"
+      ],
+      "reference": [
+        "HH",
+        "AY"
+      ],
+      "match": 1.0
+    },
+    "bye": {
+      "phonemes": [
+        "B",
+        "P"
+      ],
+      "reference": [
+        "B",
+        "AY"
+      ],
+      "match": 0.5
+    },
+    "yes": {
+      "phonemes": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "reference": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "match": 1.0
+    },
+    "me": {
+      "phonemes": [
+        "M",
+        "IY"
+      ],
+      "reference": [
+        "M",
+        "IY"
+      ],
+      "match": 1.0
+    },
+    "you": {
+      "phonemes": [
+        "Y",
+        "UW"
+      ],
+      "reference": [
+        "Y",
+        "UW"
+      ],
+      "match": 1.0
+    },
+    "go": {
+      "phonemes": [
+        "G",
+        "OW"
+      ],
+      "reference": [
+        "G",
+        "OW"
+      ],
+      "match": 1.0
+    },
+    "no": {
+      "phonemes": [
+        "N",
+        "OW"
+      ],
+      "reference": [
+        "N",
+        "OW"
+      ],
+      "match": 1.0
+    },
+    "bat": {
+      "phonemes": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "match": 1.0
+    },
+    "mushroom": {
+      "phonemes": [
+        "M",
+        "M",
+        "UW",
+        "R",
+        "UW",
+        "M"
+      ],
+      "reference": [
+        "M",
+        "AH",
+        "SH",
+        "R",
+        "UW",
+        "M"
+      ],
+      "match": 0.6666666666666666
+    },
+    "connectome": {
+      "phonemes": [
+        "K",
+        "EH",
+        "N",
+        "ER",
+        "K",
+        "T",
+        "EH",
+        "M"
+      ],
+      "reference": [
+        "K",
+        "AA",
+        "N",
+        "AH",
+        "K",
+        "T",
+        "OW",
+        "M"
+      ],
+      "match": 0.625
+    },
+    "chaos": {
+      "phonemes": [
+        "K",
+        "EY",
+        "OW",
+        "Z"
+      ],
+      "reference": [
+        "K",
+        "EY",
+        "AA",
+        "S"
+      ],
+      "match": 0.5
+    },
+    "hatsune": {
+      "phonemes": [
+        "HH",
+        "AE",
+        "T",
+        "AH",
+        "N",
+        "IY"
+      ],
+      "reference": [
+        "HH",
+        "AE",
+        "T",
+        "S",
+        "UW",
+        "N"
+      ],
+      "match": 0.5
+    },
+    "australia": {
+      "phonemes": [
+        "AO",
+        "AO",
+        "S",
+        "T",
+        "AA",
+        "L",
+        "D",
+        "AH"
+      ],
+      "reference": [
+        "AO",
+        "S",
+        "T",
+        "R",
+        "EY",
+        "L",
+        "Y",
+        "AH"
+      ],
+      "match": 0.375
+    },
+    "neural": {
+      "phonemes": [
+        "N",
+        "EH",
+        "UH",
+        "AA",
+        "L"
+      ],
+      "reference": [
+        "N",
+        "UH",
+        "R",
+        "AH",
+        "L"
+      ],
+      "match": 0.4
+    },
+    "phoneme": {
+      "phonemes": [
+        "F",
+        "OW",
+        "IH",
+        "IH",
+        "M"
+      ],
+      "reference": [
+        "F",
+        "OW",
+        "N",
+        "IY",
+        "M"
+      ],
+      "match": 0.6
+    },
+    "cursed": {
+      "phonemes": [
+        "K",
+        "ER",
+        "S",
+        "D"
+      ],
+      "reference": [
+        "K",
+        "ER",
+        "S",
+        "T"
+      ],
+      "match": 0.75
+    },
+    "flywire": {
+      "phonemes": [
+        "F",
+        "L",
+        "K",
+        "AH",
+        "AY",
+        "ER"
+      ],
+      "reference": [
+        "F",
+        "L",
+        "AY",
+        "W",
+        "AY",
+        "R"
+      ],
+      "match": 0.5
+    },
+    "kenyon": {
+      "phonemes": [
+        "K",
+        "EH",
+        "N",
+        "AH",
+        "UW",
+        "N"
+      ],
+      "reference": [
+        "K",
+        "EH",
+        "N",
+        "Y",
+        "AH",
+        "N"
+      ],
+      "match": 0.6666666666666666
+    }
+  },
+  "acoustic": {
+    "cat": {
+      "phonemes": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "match": 1.0
+    },
+    "dog": {
+      "phonemes": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "reference": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "match": 1.0
+    },
+    "hi": {
+      "phonemes": [
+        "HH",
+        "AY"
+      ],
+      "reference": [
+        "HH",
+        "AY"
+      ],
+      "match": 1.0
+    },
+    "bye": {
+      "phonemes": [
+        "B",
+        "P"
+      ],
+      "reference": [
+        "B",
+        "AY"
+      ],
+      "match": 0.5
+    },
+    "yes": {
+      "phonemes": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "reference": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "match": 1.0
+    },
+    "me": {
+      "phonemes": [
+        "M",
+        "IY"
+      ],
+      "reference": [
+        "M",
+        "IY"
+      ],
+      "match": 1.0
+    },
+    "you": {
+      "phonemes": [
+        "Y",
+        "UW"
+      ],
+      "reference": [
+        "Y",
+        "UW"
+      ],
+      "match": 1.0
+    },
+    "go": {
+      "phonemes": [
+        "G",
+        "OW"
+      ],
+      "reference": [
+        "G",
+        "OW"
+      ],
+      "match": 1.0
+    },
+    "no": {
+      "phonemes": [
+        "N",
+        "OW"
+      ],
+      "reference": [
+        "N",
+        "OW"
+      ],
+      "match": 1.0
+    },
+    "bat": {
+      "phonemes": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "match": 1.0
+    },
+    "mushroom": {
+      "phonemes": [
+        "M",
+        "M",
+        "UW",
+        "R",
+        "UW",
+        "M"
+      ],
+      "reference": [
+        "M",
+        "AH",
+        "SH",
+        "R",
+        "UW",
+        "M"
+      ],
+      "match": 0.6666666666666666
+    },
+    "connectome": {
+      "phonemes": [
+        "K",
+        "EH",
+        "N",
+        "ER",
+        "K",
+        "T",
+        "EH",
+        "M"
+      ],
+      "reference": [
+        "K",
+        "AA",
+        "N",
+        "AH",
+        "K",
+        "T",
+        "OW",
+        "M"
+      ],
+      "match": 0.625
+    },
+    "chaos": {
+      "phonemes": [
+        "K",
+        "EY",
+        "OW",
+        "Z"
+      ],
+      "reference": [
+        "K",
+        "EY",
+        "AA",
+        "S"
+      ],
+      "match": 0.5
+    },
+    "hatsune": {
+      "phonemes": [
+        "HH",
+        "AE",
+        "T",
+        "AH",
+        "N",
+        "IY"
+      ],
+      "reference": [
+        "HH",
+        "AE",
+        "T",
+        "S",
+        "UW",
+        "N"
+      ],
+      "match": 0.5
+    },
+    "australia": {
+      "phonemes": [
+        "AO",
+        "AO",
+        "S",
+        "T",
+        "AA",
+        "L",
+        "D",
+        "AH"
+      ],
+      "reference": [
+        "AO",
+        "S",
+        "T",
+        "R",
+        "EY",
+        "L",
+        "Y",
+        "AH"
+      ],
+      "match": 0.375
+    },
+    "neural": {
+      "phonemes": [
+        "N",
+        "EH",
+        "UH",
+        "AA",
+        "L"
+      ],
+      "reference": [
+        "N",
+        "UH",
+        "R",
+        "AH",
+        "L"
+      ],
+      "match": 0.4
+    },
+    "phoneme": {
+      "phonemes": [
+        "F",
+        "OW",
+        "IH",
+        "IH",
+        "M"
+      ],
+      "reference": [
+        "F",
+        "OW",
+        "N",
+        "IY",
+        "M"
+      ],
+      "match": 0.6
+    },
+    "cursed": {
+      "phonemes": [
+        "K",
+        "ER",
+        "S",
+        "D"
+      ],
+      "reference": [
+        "K",
+        "ER",
+        "S",
+        "T"
+      ],
+      "match": 0.75
+    },
+    "flywire": {
+      "phonemes": [
+        "F",
+        "L",
+        "K",
+        "AH",
+        "AY",
+        "ER"
+      ],
+      "reference": [
+        "F",
+        "L",
+        "AY",
+        "W",
+        "AY",
+        "R"
+      ],
+      "match": 0.5
+    },
+    "kenyon": {
+      "phonemes": [
+        "K",
+        "EH",
+        "N",
+        "AH",
+        "UW",
+        "N"
+      ],
+      "reference": [
+        "K",
+        "EH",
+        "N",
+        "Y",
+        "AH",
+        "N"
+      ],
+      "match": 0.6666666666666666
+    }
+  },
+  "comparison": {
+    "cat": {
+      "formant": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "acoustic": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "K",
+        "AE",
+        "T"
+      ],
+      "same": true
+    },
+    "dog": {
+      "formant": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "acoustic": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "reference": [
+        "D",
+        "AO",
+        "G"
+      ],
+      "same": true
+    },
+    "hi": {
+      "formant": [
+        "HH",
+        "AY"
+      ],
+      "acoustic": [
+        "HH",
+        "AY"
+      ],
+      "reference": [
+        "HH",
+        "AY"
+      ],
+      "same": true
+    },
+    "bye": {
+      "formant": [
+        "B",
+        "P"
+      ],
+      "acoustic": [
+        "B",
+        "P"
+      ],
+      "reference": [
+        "B",
+        "AY"
+      ],
+      "same": true
+    },
+    "yes": {
+      "formant": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "acoustic": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "reference": [
+        "Y",
+        "EH",
+        "S"
+      ],
+      "same": true
+    },
+    "me": {
+      "formant": [
+        "M",
+        "IY"
+      ],
+      "acoustic": [
+        "M",
+        "IY"
+      ],
+      "reference": [
+        "M",
+        "IY"
+      ],
+      "same": true
+    },
+    "you": {
+      "formant": [
+        "Y",
+        "UW"
+      ],
+      "acoustic": [
+        "Y",
+        "UW"
+      ],
+      "reference": [
+        "Y",
+        "UW"
+      ],
+      "same": true
+    },
+    "go": {
+      "formant": [
+        "G",
+        "OW"
+      ],
+      "acoustic": [
+        "G",
+        "OW"
+      ],
+      "reference": [
+        "G",
+        "OW"
+      ],
+      "same": true
+    },
+    "no": {
+      "formant": [
+        "N",
+        "OW"
+      ],
+      "acoustic": [
+        "N",
+        "OW"
+      ],
+      "reference": [
+        "N",
+        "OW"
+      ],
+      "same": true
+    },
+    "bat": {
+      "formant": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "acoustic": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "reference": [
+        "B",
+        "AE",
+        "T"
+      ],
+      "same": true
+    },
+    "mushroom": {
+      "formant": [
+        "M",
+        "M",
+        "UW",
+        "R",
+        "UW",
+        "M"
+      ],
+      "acoustic": [
+        "M",
+        "M",
+        "UW",
+        "R",
+        "UW",
+        "M"
+      ],
+      "reference": [
+        "M",
+        "AH",
+        "SH",
+        "R",
+        "UW",
+        "M"
+      ],
+      "same": true
+    },
+    "connectome": {
+      "formant": [
+        "K",
+        "EH",
+        "N",
+        "ER",
+        "K",
+        "T",
+        "EH",
+        "M"
+      ],
+      "acoustic": [
+        "K",
+        "EH",
+        "N",
+        "ER",
+        "K",
+        "T",
+        "EH",
+        "M"
+      ],
+      "reference": [
+        "K",
+        "AA",
+        "N",
+        "AH",
+        "K",
+        "T",
+        "OW",
+        "M"
+      ],
+      "same": true
+    },
+    "chaos": {
+      "formant": [
+        "K",
+        "EY",
+        "OW",
+        "Z"
+      ],
+      "acoustic": [
+        "K",
+        "EY",
+        "OW",
+        "Z"
+      ],
+      "reference": [
+        "K",
+        "EY",
+        "AA",
+        "S"
+      ],
+      "same": true
+    },
+    "hatsune": {
+      "formant": [
+        "HH",
+        "AE",
+        "T",
+        "AH",
+        "N",
+        "IY"
+      ],
+      "acoustic": [
+        "HH",
+        "AE",
+        "T",
+        "AH",
+        "N",
+        "IY"
+      ],
+      "reference": [
+        "HH",
+        "AE",
+        "T",
+        "S",
+        "UW",
+        "N"
+      ],
+      "same": true
+    },
+    "australia": {
+      "formant": [
+        "AO",
+        "AO",
+        "S",
+        "T",
+        "AA",
+        "L",
+        "D",
+        "AH"
+      ],
+      "acoustic": [
+        "AO",
+        "AO",
+        "S",
+        "T",
+        "AA",
+        "L",
+        "D",
+        "AH"
+      ],
+      "reference": [
+        "AO",
+        "S",
+        "T",
+        "R",
+        "EY",
+        "L",
+        "Y",
+        "AH"
+      ],
+      "same": true
+    },
+    "neural": {
+      "formant": [
+        "N",
+        "EH",
+        "UH",
+        "AA",
+        "L"
+      ],
+      "acoustic": [
+        "N",
+        "EH",
+        "UH",
+        "AA",
+        "L"
+      ],
+      "reference": [
+        "N",
+        "UH",
+        "R",
+        "AH",
+        "L"
+      ],
+      "same": true
+    },
+    "phoneme": {
+      "formant": [
+        "F",
+        "OW",
+        "IH",
+        "IH",
+        "M"
+      ],
+      "acoustic": [
+        "F",
+        "OW",
+        "IH",
+        "IH",
+        "M"
+      ],
+      "reference": [
+        "F",
+        "OW",
+        "N",
+        "IY",
+        "M"
+      ],
+      "same": true
+    },
+    "cursed": {
+      "formant": [
+        "K",
+        "ER",
+        "S",
+        "D"
+      ],
+      "acoustic": [
+        "K",
+        "ER",
+        "S",
+        "D"
+      ],
+      "reference": [
+        "K",
+        "ER",
+        "S",
+        "T"
+      ],
+      "same": true
+    },
+    "flywire": {
+      "formant": [
+        "F",
+        "L",
+        "K",
+        "AH",
+        "AY",
+        "ER"
+      ],
+      "acoustic": [
+        "F",
+        "L",
+        "K",
+        "AH",
+        "AY",
+        "ER"
+      ],
+      "reference": [
+        "F",
+        "L",
+        "AY",
+        "W",
+        "AY",
+        "R"
+      ],
+      "same": true
+    },
+    "kenyon": {
+      "formant": [
+        "K",
+        "EH",
+        "N",
+        "AH",
+        "UW",
+        "N"
+      ],
+      "acoustic": [
+        "K",
+        "EH",
+        "N",
+        "AH",
+        "UW",
+        "N"
+      ],
+      "reference": [
+        "K",
+        "EH",
+        "N",
+        "Y",
+        "AH",
+        "N"
+      ],
+      "same": true
+    }
+  }
+}

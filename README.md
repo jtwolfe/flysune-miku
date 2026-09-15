@@ -541,6 +541,85 @@ Input Features (letter context)
 
 ---
 
+## Acoustic Fly Head (Trained Speech Production)
+
+*"Flies that learn to speak"*
+
+The **Acoustic Fly Head** extends the architecture from phoneme *picking* to voice *production*. Instead of concatenating pre-recorded samples (like UTAU playback), acoustic flies **learn to produce voice** from fly-native features.
+
+### Architecture
+
+```
+Word ("cat")
+    ↓
+Letter context encoding → Picker Swarm (MORE FLY)
+    ↓
+KC activity + phoneme cue → Acoustic Fly (per-phoneme MoE)
+    ↓
+Voice parameters (F0, formants, harmonics, noise)
+    ↓
+Additive synthesis → Audio WAV
+```
+
+**This is TRAINED speech**, not sample playback:
+
+- **Picker flies**: Choose phoneme sequence (G2P classification)
+- **Acoustic flies**: Each phoneme has its own "voice fly" that learns KC→audio mapping
+- **Parametric synthesis**: Clean oscillator bank (NOT Griffin-Lim vocoding)
+
+### Training Targets
+
+1. **MARIAN ILUSTRADO** (preferred): Real voicebank crumbs from Kanabun's Arpasing bank
+   - Download: https://downloadmarian.carrd.co/
+   - Attribution required (see NOTICE)
+
+2. **Formant Bootstrap** (fallback): Uses formant synth crumbs as targets
+   - Used when MARIAN unavailable
+   - Demonstrates the architecture works end-to-end
+
+### Quick Start (Acoustic Flies)
+
+```bash
+# Train acoustic flies (requires trained picker swarm)
+python -m cursed_tts train-acoustic-flies --epochs 10 --words 5000
+
+# Speak using trained acoustic flies
+python -m cursed_tts speak mushroom --acoustic
+
+# Generate all demo WAVs with acoustic flies
+python -m cursed_tts speak-all --acoustic
+```
+
+### Comparison: Formant Baseline vs Acoustic Flies
+
+Both use the same MORE FLY picker for phoneme selection:
+
+| Method | Audio Source | Training |
+|--------|--------------|----------|
+| Formant baseline | Fixed formant synth | None |
+| Acoustic flies | Learned KC→voice mapping | Supervised on crumbs |
+
+Demo WAVs in `artifacts/eval/acoustic_flies/`:
+- `formant_baseline/`: MORE FLY picker + formant synth
+- `acoustic_flies/`: MORE FLY picker + trained acoustic synth
+
+### Fly-Faithful Design
+
+The acoustic fly architecture follows mushroom body principles:
+
+1. **Per-compartment readout**: Each phoneme has its own acoustic fly (MBON-like)
+2. **KC→output mapping**: Sparse KC pattern → voice parameters
+3. **Compartment-local teaching**: Only the responsible fly updates per example
+4. **Small MoE**: 39 phoneme specialists, not one big TTS model
+
+### Limitations (v1)
+
+- **No prosody**: Fixed F0 per phoneme, no intonation
+- **Short crumbs**: ~0.1-0.2s per phoneme, no coarticulation
+- **Bootstrap mode**: Without MARIAN download, targets are synthetic
+
+---
+
 ## References
 
 - [FlyWire Hiragana OCR Demo](https://hae.satoru.net/) — The inspiration
