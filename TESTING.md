@@ -12,6 +12,11 @@ then render each phoneme as a short audio crumb. Speakers are conditioned
 **only on phoneme id** (plus optional prev-phone / position). They never see
 picker Kenyon-cell activity.
 
+**Frozen demo/speak path:** lexicon phones → Marian-fit speakers → WAV
+(`v0.3.0-speakers-lexicon`, `freeze/speakers-lexicon-acceptable`). Point at
+avocado-style `*_speakers_lexicon` demos. Picker G2P phones are optional /
+experimental, not the frozen deliverable. No KC→voice.
+
 ## How speakers were trained (this PR)
 
 Speakers were trained with **`train-speaker-flies --mode marian-fit`**.

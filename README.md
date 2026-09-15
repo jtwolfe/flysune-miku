@@ -196,6 +196,8 @@ word → PICKER SWARM → phoneme list → SPEAKER SWARM → WAV
         (G2P via KC)    [K AE T]      (NO KC!)
 ```
 
+**Frozen speak path (`v0.3.0-speakers-lexicon`):** lexicon/dictionary phonemes → Marian-fit speaker flies → WAV. That is the accepted baseline (avocado-style `*_speakers_lexicon` demos). Picker G2P remains experimental/optional. No KC→voice (PR #6 rejected). Branch: `freeze/speakers-lexicon-acceptable`.
+
 ### Architecture Principles
 
 1. **PICKER SWARM** (recognition): Uses KC/MB for G2P classification
@@ -489,8 +491,9 @@ WAV files generated using swarm predictions for:
 
 ### Freeze Tags
 
-- `v0.1.0-g2p-acceptable`: The baseline single-MB model (don't modify)
-- `freeze/g2p-acceptable`: Frozen branch with baseline (don't modify)
+- `v0.1.0-g2p-acceptable` / `freeze/g2p-acceptable`: baseline single-MB G2P (don't modify)
+- `v0.2.0-more-fly` / `freeze/more-fly-acceptable`: MORE FLY picker (don't modify)
+- `v0.3.0-speakers-lexicon` / `freeze/speakers-lexicon-acceptable`: Marian-fit speakers + lexicon phones (don't modify)
 
 ### Singer Fly Voice Examples
 
