@@ -1,0 +1,192 @@
+{
+  "AA": {
+    "alias": "aa5",
+    "wav": "320.wav",
+    "duration_ms": 200.0
+  },
+  "AE": {
+    "alias": "ae4",
+    "wav": "321.wav",
+    "duration_ms": 200.0
+  },
+  "AH": {
+    "alias": "ah5",
+    "wav": "009.wav",
+    "duration_ms": 86.98412698412699
+  },
+  "AO": {
+    "alias": "ao4",
+    "wav": "323.wav",
+    "duration_ms": 200.0
+  },
+  "EH": {
+    "alias": "eh5",
+    "wav": "324.wav",
+    "duration_ms": 200.0
+  },
+  "ER": {
+    "alias": "er5",
+    "wav": "061.wav",
+    "duration_ms": 100.99773242630386
+  },
+  "IH": {
+    "alias": "ih5",
+    "wav": "005.wav",
+    "duration_ms": 101.99546485260771
+  },
+  "IY": {
+    "alias": "iy5",
+    "wav": "091.wav",
+    "duration_ms": 200.0
+  },
+  "UH": {
+    "alias": "uh1",
+    "wav": "328.wav",
+    "duration_ms": 200.0
+  },
+  "UW": {
+    "alias": "uw5",
+    "wav": "118.wav",
+    "duration_ms": 200.0
+  },
+  "AW": {
+    "alias": "aw5",
+    "wav": "330.wav",
+    "duration_ms": 200.0
+  },
+  "AY": {
+    "alias": "ay5",
+    "wav": "007.wav",
+    "duration_ms": 92.97052154195012
+  },
+  "EY": {
+    "alias": "ey5",
+    "wav": "281.wav",
+    "duration_ms": 200.0
+  },
+  "OW": {
+    "alias": "ow5",
+    "wav": "106.wav",
+    "duration_ms": 200.0
+  },
+  "OY": {
+    "alias": "oy1",
+    "wav": "334.wav",
+    "duration_ms": 200.0
+  },
+  "P": {
+    "alias": "- p5",
+    "wav": "069.wav",
+    "duration_ms": 120.99773242630386
+  },
+  "B": {
+    "alias": "- b5",
+    "wav": "117.wav",
+    "duration_ms": 109.97732426303855
+  },
+  "T": {
+    "alias": "- t5",
+    "wav": "253.wav",
+    "duration_ms": 120.0
+  },
+  "D": {
+    "alias": "- d5",
+    "wav": "265.wav",
+    "duration_ms": 120.0
+  },
+  "K": {
+    "alias": "- k5",
+    "wav": "102.wav",
+    "duration_ms": 120.0
+  },
+  "G": {
+    "alias": "- g5",
+    "wav": "109.wav",
+    "duration_ms": 116.96145124716553
+  },
+  "CH": {
+    "alias": "- ch2",
+    "wav": "087.wav",
+    "duration_ms": 120.0
+  },
+  "JH": {
+    "alias": "- jh1",
+    "wav": "231.wav",
+    "duration_ms": 120.0
+  },
+  "F": {
+    "alias": "- f5",
+    "wav": "116.wav",
+    "duration_ms": 120.0
+  },
+  "V": {
+    "alias": "- v5",
+    "wav": "278.wav",
+    "duration_ms": 120.0
+  },
+  "TH": {
+    "alias": "th5",
+    "wav": "081.wav",
+    "duration_ms": 121.99546485260771
+  },
+  "DH": {
+    "alias": "- dh3",
+    "wav": "274.wav",
+    "duration_ms": 120.0
+  },
+  "S": {
+    "alias": "- s5",
+    "wav": "064.wav",
+    "duration_ms": 120.0
+  },
+  "Z": {
+    "alias": "- z5",
+    "wav": "097.wav",
+    "duration_ms": 120.0
+  },
+  "SH": {
+    "alias": "- sh5",
+    "wav": "304.wav",
+    "duration_ms": 120.0
+  },
+  "HH": {
+    "alias": "- hh5",
+    "wav": "299.wav",
+    "duration_ms": 120.0
+  },
+  "M": {
+    "alias": "- m5",
+    "wav": "232.wav",
+    "duration_ms": 120.0
+  },
+  "N": {
+    "alias": "n5",
+    "wav": "024.wav",
+    "duration_ms": 140.0
+  },
+  "NG": {
+    "alias": "ng5",
+    "wav": "027.wav",
+    "duration_ms": 135.9637188208617
+  },
+  "L": {
+    "alias": "- l4",
+    "wav": "277.wav",
+    "duration_ms": 120.0
+  },
+  "R": {
+    "alias": "- r2",
+    "wav": "285.wav",
+    "duration_ms": 108.9795918367347
+  },
+  "W": {
+    "alias": "- w5",
+    "wav": "291.wav",
+    "duration_ms": 120.0
+  },
+  "Y": {
+    "alias": "- y3",
+    "wav": "312.wav",
+    "duration_ms": 120.0
+  }
+}

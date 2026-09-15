@@ -185,7 +185,120 @@ Scratchy/experimental outputs from the trajectory-regression approach. Not recom
 
 ---
 
-## One Phoneme Per Fly (Experimental)
+## Two-Swarm Architecture (Recommended)
+
+*"Recognition flies pick; speaking flies speak."*
+
+The clean two-swarm architecture separates G2P classification from audio synthesis:
+
+```
+word → PICKER SWARM → phoneme list → SPEAKER SWARM → WAV
+        (G2P via KC)    [K AE T]      (NO KC!)
+```
+
+### Architecture Principles
+
+1. **PICKER SWARM** (recognition): Uses KC/MB for G2P classification
+   - Input: letter context
+   - Output: phoneme sequence
+   - **Uses KC activity** for sparse expansion and classification
+
+2. **SPEAKER SWARM** (synthesis): **NO KC/MB dependency**
+   - Input: phoneme ID + optional context (prev-phone, position)
+   - Output: audio crumb
+   - Each phoneme has its own speaker fly with trainable parameters
+
+### Why Two Swarms?
+
+PR #6 ("Acoustic Fly Head") tried to generate audio from picker KC features:
+```
+word → picker → KC activity → acoustic fly → audio  ← WRONG (PR #6)
+```
+
+This caused all words to sound similar because KC patterns are similar across words.
+
+The correct architecture:
+```
+word → picker → phonemes → speakers → audio  ← CORRECT (this PR)
+```
+
+Now different words produce different audio because speakers are conditioned
+only on phoneme identity, not on KC activity.
+
+### Quick Start (Two-Swarm)
+
+```bash
+# Train picker flies (G2P classification)
+python -m cursed_tts train-swarm --epochs 10
+
+# Train speaker flies (audio synthesis, no KC)
+python -m cursed_tts train-speaker-flies --iterations 50
+
+# Speak using two-swarm pipeline
+python -m cursed_tts speak-two-swarm mushroom
+
+# Speak a sentence
+python -m cursed_tts speak-two-swarm-sentence "hello world"
+
+# Generate demo suite
+python -m cursed_tts speak-two-swarm-demo
+```
+
+### Speaker Modes
+
+| Mode | Description |
+|------|-------------|
+| `formant` | Baseline formant synthesis (default) |
+| `trained` | Learned per-phoneme parametric voice |
+| `sample` | Plays carefully sliced Marian crumbs (when available) |
+
+```bash
+# Fit speakers to Marian ILUSTRADO crumbs (this PR)
+python -m cursed_tts train-speaker-flies --mode marian-fit \
+  --voicebank /path/to/MARIAN\ ILUSTRADO\ Series --iterations 50
+
+# Formant self-targets if the voicebank is unavailable
+python -m cursed_tts train-speaker-flies --mode formant-bootstrap
+```
+
+This PR downloaded MARIAN (ILUSTRADO) from https://downloadmarian.carrd.co/,
+sliced duration-capped crumbs (`data/marian_crumbs/`, attribution in `data/NOTICE`),
+and fitted `model_speaker.npz`. `ZH` had no oto alias and used a formant target.
+
+### Verification
+
+The two-swarm architecture is verified by tests that ensure:
+- SpeakerFly/SpeakerSwarm have **no KC-related parameters**
+- Different phonemes produce different audio
+- Duration caps are respected (60-250ms per crumb)
+
+```bash
+# Run two-swarm tests
+python -m pytest tests/test_two_swarm.py -v
+```
+
+See [TESTING.md](TESTING.md) for full testing documentation.
+
+---
+
+## ⚠️ Deprecated: Acoustic Fly Head (PR #6)
+
+**Do not use** the PR #6 "Acoustic Fly Head" approach that passes KC activity to speakers.
+
+| Approach | KC→Speakers? | Result |
+|----------|--------------|--------|
+| PR #6 Acoustic Flies | YES ❌ | Words sound identical |
+| Two-Swarm (this PR) | NO ✓ | Words sound different |
+
+The acoustic fly approach coupled speaker output to picker state instead of phoneme identity,
+causing "cat", "bat", and "me" to produce nearly identical audio.
+
+If you need to reference PR #6, see [PR #6](https://github.com/jtwolfe/flysune-miku/pull/6) 
+for the wrong fork (now deprecated).
+
+---
+
+## One Phoneme Per Fly (Picker Swarm)
 
 *"What if each phoneme had its own dedicated fly brain?"*
 
