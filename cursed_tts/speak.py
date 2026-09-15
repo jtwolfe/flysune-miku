@@ -452,19 +452,403 @@ def speak_word_swarm(
     return audio, audio_ph
 
 
+class MoreFlySpeaker:
+    """
+    Speaker using MORE FLY swarm for picking + formant synth for audio.
+    
+    This is the FORMANT BASELINE for comparing against acoustic flies.
+    Same picker (MORE FLY), but uses clean formant synthesis instead of
+    trained acoustic flies.
+    """
+    
+    def __init__(self, picker_swarm):
+        from .more_fly import MoreFlySwarm
+        
+        self.picker_swarm: MoreFlySwarm = picker_swarm
+        self.phoneme_audio = synthesize_all_phonemes()
+    
+    @classmethod
+    def from_model_file(cls, path: str = "artifacts/eval/more_fly/swarm__A_B_data.npz") -> 'MoreFlySpeaker':
+        """Load speaker from model file."""
+        from .more_fly import MoreFlySwarm
+        
+        picker_swarm = MoreFlySwarm.load(path)
+        return cls(picker_swarm)
+    
+    def get_reference_phonemes(self, word: str) -> Tuple[List[str], bool]:
+        """Get reference phonemes from CMUdict or G2P."""
+        phonemes = get_phonemes(word, allow_g2p=True)
+        known = is_known_word(word)
+        return phonemes, known
+    
+    def get_picker_phonemes(self, word: str, n_phonemes: int) -> List[str]:
+        """Predict phonemes using picker swarm."""
+        return self.picker_swarm.predict_word(word, n_phonemes)
+    
+    def synthesize(self, phonemes: List[str]) -> np.ndarray:
+        """Synthesize audio from phoneme sequence using formant synth."""
+        return concatenate_phonemes(phonemes, self.phoneme_audio)
+    
+    def speak(
+        self,
+        word: str,
+        output_path: Optional[str] = None,
+        use_lexicon: bool = False,
+        verbose: bool = True,
+    ) -> Tuple[np.ndarray, List[str], List[str], bool]:
+        """
+        Speak a word using MORE FLY picker + formant synth.
+        """
+        word = word.lower().strip()
+        
+        ref_phonemes, is_known = self.get_reference_phonemes(word)
+        ref_phonemes_stripped = [strip_stress(p) for p in ref_phonemes]
+        
+        if use_lexicon:
+            audio_phonemes = ref_phonemes_stripped
+            source = "lexicon+formant"
+        else:
+            audio_phonemes = self.get_picker_phonemes(word, len(ref_phonemes))
+            audio_phonemes = [strip_stress(p) for p in audio_phonemes]
+            source = "picker+formant"
+        
+        audio = self.synthesize(audio_phonemes)
+        
+        if verbose:
+            known_str = "CMUdict" if is_known else "G2P"
+            print(f"\nSpeaking: '{word}' ({known_str}) [MORE FLY + FORMANT]")
+            print(f"  Reference: {' '.join(ref_phonemes_stripped)}")
+            print(f"  Audio ({source}): {' '.join(audio_phonemes)}")
+            
+            n_match = sum(1 for r, a in zip(ref_phonemes_stripped, audio_phonemes) if r == a)
+            n_total = len(ref_phonemes_stripped)
+            match_pct = 100 * n_match / n_total if n_total > 0 else 0
+            print(f"  Match: {n_match}/{n_total} ({match_pct:.0f}%)")
+        
+        if output_path:
+            save_wav(audio, output_path, SAMPLE_RATE)
+        
+        return audio, audio_phonemes, ref_phonemes_stripped, is_known
+    
+    def speak_demo(
+        self,
+        output_dir: str = "artifacts/formant_baseline",
+        verbose: bool = True,
+    ) -> Dict[str, Dict]:
+        """Speak all demo words."""
+        demo_words = get_demo_words()
+        return self._speak_wordlist(demo_words, output_dir, verbose)
+    
+    def _speak_wordlist(
+        self,
+        words: List[str],
+        output_dir: str,
+        verbose: bool,
+    ) -> Dict[str, Dict]:
+        """Speak a list of words."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        results = {}
+        for word in words:
+            word_clean = ''.join(c for c in word.lower() if c.isalnum())
+            output_path = output_dir / f"{word_clean}.wav"
+            
+            try:
+                audio, audio_ph, ref_ph, known = self.speak(
+                    word, str(output_path), verbose=verbose
+                )
+                results[word] = {
+                    'audio_phonemes': audio_ph,
+                    'reference_phonemes': ref_ph,
+                    'is_known': known,
+                    'path': str(output_path),
+                }
+            except Exception as e:
+                print(f"Error on '{word}': {e}")
+                results[word] = {'error': str(e)}
+        
+        return results
+
+
+class AcousticSpeaker:
+    """
+    Speaker using trained acoustic fly head.
+    
+    Flow:
+    1. Picker swarm predicts phoneme sequence (G2P classification)
+    2. For each phoneme, acoustic fly synthesizes audio from KC features
+    3. Concatenate phoneme audio crumbs into final WAV
+    
+    This is TRAINED speech production, not concatenative sample playback.
+    The acoustic flies learn to map fly-native features → voice.
+    """
+    
+    def __init__(
+        self,
+        picker_swarm,
+        acoustic_swarm,
+    ):
+        from .more_fly import MoreFlySwarm
+        from .acoustic_fly import AcousticFlySwarm
+        
+        self.picker_swarm: MoreFlySwarm = picker_swarm
+        self.acoustic_swarm: AcousticFlySwarm = acoustic_swarm
+    
+    @classmethod
+    def from_model_files(
+        cls,
+        picker_path: str = "artifacts/eval/more_fly/swarm__A_B_data.npz",
+        acoustic_path: str = "model_acoustic.npz",
+    ) -> 'AcousticSpeaker':
+        """Load speaker from model files."""
+        from .more_fly import MoreFlySwarm
+        from .acoustic_fly import AcousticFlySwarm
+        
+        picker_swarm = MoreFlySwarm.load(picker_path)
+        acoustic_swarm = AcousticFlySwarm.load(acoustic_path)
+        return cls(picker_swarm, acoustic_swarm)
+    
+    def get_reference_phonemes(self, word: str) -> Tuple[List[str], bool]:
+        """Get reference phonemes from CMUdict or G2P."""
+        phonemes = get_phonemes(word, allow_g2p=True)
+        known = is_known_word(word)
+        return phonemes, known
+    
+    def get_picker_phonemes(self, word: str, n_phonemes: int) -> Tuple[List[str], List[np.ndarray]]:
+        """
+        Predict phonemes using picker swarm and collect KC activities.
+        
+        Returns:
+            phonemes: Predicted phoneme sequence
+            kc_activities: KC activity for each phoneme slot
+        """
+        word = word.lower()
+        n_letters = len(word)
+        context_size = self.picker_swarm.config.context_size
+        
+        phonemes = []
+        kc_activities = []
+        
+        for p_idx in range(n_phonemes):
+            if n_phonemes == 1:
+                letter_pos = n_letters // 2
+                phoneme_pos = 0.5
+            else:
+                letter_pos = int(round(p_idx * (n_letters - 1) / (n_phonemes - 1)))
+                phoneme_pos = p_idx / (n_phonemes - 1)
+            letter_pos = max(0, min(letter_pos, n_letters - 1))
+            
+            context_chars = []
+            for offset in range(-context_size, context_size + 1):
+                idx = letter_pos + offset
+                if 0 <= idx < n_letters:
+                    context_chars.append(word[idx])
+                else:
+                    context_chars.append('_')
+            letter_context = ''.join(context_chars)
+            
+            previous_phone = phonemes[p_idx - 1] if p_idx > 0 else None
+            
+            # Get KC activity
+            kc_activity = self.picker_swarm.shared.encode_to_kc(
+                letter_context,
+                phoneme_pos=phoneme_pos,
+                n_phonemes=n_phonemes,
+                previous_phone=previous_phone,
+            )
+            kc_activities.append(kc_activity)
+            
+            # Predict phoneme
+            phoneme, _, _ = self.picker_swarm.predict(
+                letter_context,
+                phoneme_pos=phoneme_pos,
+                n_phonemes=n_phonemes,
+                previous_phone=previous_phone,
+            )
+            phonemes.append(phoneme)
+        
+        return phonemes, kc_activities
+    
+    def synthesize(
+        self,
+        phonemes: List[str],
+        kc_activities: List[np.ndarray],
+    ) -> np.ndarray:
+        """Synthesize audio using acoustic flies."""
+        return self.acoustic_swarm.synthesize_sequence(phonemes, kc_activities)
+    
+    def speak(
+        self,
+        word: str,
+        output_path: Optional[str] = None,
+        use_lexicon: bool = False,
+        verbose: bool = True,
+    ) -> Tuple[np.ndarray, List[str], List[str], bool]:
+        """
+        Speak a word using acoustic flies.
+        
+        Args:
+            word: Word to speak
+            output_path: Optional path to save WAV
+            use_lexicon: If True, use dictionary phonemes (for comparison)
+            verbose: Print details
+        
+        Returns:
+            audio: Audio signal
+            audio_phonemes: Phonemes used for synthesis
+            reference_phonemes: Reference phonemes from CMUdict/G2P
+            is_known: Whether word is in CMUdict
+        """
+        word = word.lower().strip()
+        
+        ref_phonemes, is_known = self.get_reference_phonemes(word)
+        ref_phonemes_stripped = [strip_stress(p) for p in ref_phonemes]
+        
+        if use_lexicon:
+            audio_phonemes = ref_phonemes_stripped
+            # Use random KC activity for lexicon mode
+            kc_activities = [
+                np.zeros(self.acoustic_swarm.config.kc_dim, dtype=np.float32)
+                for _ in audio_phonemes
+            ]
+            # Set some sparse activations
+            for kc in kc_activities:
+                kc[::10] = 1.0
+            source = "lexicon+acoustic"
+        else:
+            audio_phonemes, kc_activities = self.get_picker_phonemes(word, len(ref_phonemes))
+            audio_phonemes = [strip_stress(p) for p in audio_phonemes]
+            source = "picker+acoustic"
+        
+        audio = self.synthesize(audio_phonemes, kc_activities)
+        
+        if verbose:
+            known_str = "CMUdict" if is_known else "G2P"
+            print(f"\nSpeaking: '{word}' ({known_str}) [ACOUSTIC FLIES]")
+            print(f"  Reference: {' '.join(ref_phonemes_stripped)}")
+            print(f"  Audio ({source}): {' '.join(audio_phonemes)}")
+            
+            n_match = sum(1 for r, a in zip(ref_phonemes_stripped, audio_phonemes) if r == a)
+            n_total = len(ref_phonemes_stripped)
+            match_pct = 100 * n_match / n_total if n_total > 0 else 0
+            print(f"  Match: {n_match}/{n_total} ({match_pct:.0f}%)")
+        
+        if output_path:
+            save_wav(audio, output_path, SAMPLE_RATE)
+        
+        return audio, audio_phonemes, ref_phonemes_stripped, is_known
+    
+    def speak_demo(
+        self,
+        output_dir: str = "artifacts/acoustic_flies",
+        verbose: bool = True,
+    ) -> Dict[str, Dict]:
+        """Speak all demo words."""
+        demo_words = get_demo_words()
+        return self._speak_wordlist(demo_words, output_dir, verbose)
+    
+    def speak_oov_examples(
+        self,
+        output_dir: str = "artifacts/acoustic_flies",
+        verbose: bool = True,
+    ) -> Dict[str, Dict]:
+        """Speak OOV example words."""
+        oov_words = [
+            'mushroom', 'connectome', 'chaos', 'hatsune', 'australia',
+            'neural', 'phoneme', 'cursed', 'flywire', 'kenyon'
+        ]
+        return self._speak_wordlist(oov_words, output_dir, verbose)
+    
+    def _speak_wordlist(
+        self,
+        words: List[str],
+        output_dir: str,
+        verbose: bool,
+    ) -> Dict[str, Dict]:
+        """Speak a list of words."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        results = {}
+        for word in words:
+            word_clean = ''.join(c for c in word.lower() if c.isalnum())
+            output_path = output_dir / f"{word_clean}.wav"
+            
+            try:
+                audio, audio_ph, ref_ph, known = self.speak(
+                    word, str(output_path), verbose=verbose
+                )
+                results[word] = {
+                    'audio_phonemes': audio_ph,
+                    'reference_phonemes': ref_ph,
+                    'is_known': known,
+                    'path': str(output_path),
+                }
+            except Exception as e:
+                print(f"Error on '{word}': {e}")
+                results[word] = {'error': str(e)}
+        
+        return results
+    
+    def speak_all(
+        self,
+        output_dir: str = "artifacts/acoustic_flies",
+        verbose: bool = True,
+    ) -> Dict[str, Dict]:
+        """Speak demo words and OOV examples."""
+        results = {}
+        
+        if verbose:
+            print(f"\n=== Demo Words (ACOUSTIC FLIES) ===")
+        results.update(self.speak_demo(output_dir, verbose))
+        
+        if verbose:
+            print(f"\n=== OOV Examples (ACOUSTIC FLIES) ===")
+        results.update(self.speak_oov_examples(output_dir, verbose))
+        
+        if verbose:
+            print(f"\nAcoustic WAVs saved to: {output_dir}")
+        
+        return results
+
+
+def speak_word_acoustic(
+    word: str,
+    picker_path: str = "artifacts/eval/more_fly/swarm__A_B_data.npz",
+    acoustic_path: str = "model_acoustic.npz",
+    output_path: Optional[str] = None,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, List[str]]:
+    """
+    Convenience function to speak a word with acoustic flies.
+    """
+    speaker = AcousticSpeaker.from_model_files(picker_path, acoustic_path)
+    audio, audio_ph, _, _ = speaker.speak(word, output_path, verbose=verbose)
+    return audio, audio_ph
+
+
 if __name__ == "__main__":
     # Test speaking
     import sys
     
     word = sys.argv[1] if len(sys.argv) > 1 else "cat"
     use_lexicon = "--lexicon" in sys.argv
+    use_acoustic = "--acoustic" in sys.argv
     
-    print(f"Testing speak for '{word}' (lexicon={use_lexicon})...")
+    print(f"Testing speak for '{word}' (lexicon={use_lexicon}, acoustic={use_acoustic})...")
     
     try:
-        speaker = Speaker.from_model_file("model.npz")
-        audio, audio_ph, ref_ph, known = speaker.speak(
-            word, f"test_{word}.wav", use_lexicon=use_lexicon, verbose=True
-        )
-    except FileNotFoundError:
-        print("Model not found. Train first: python -m cursed_tts train")
+        if use_acoustic:
+            speaker = AcousticSpeaker.from_model_files()
+            audio, audio_ph, ref_ph, known = speaker.speak(
+                word, f"test_{word}_acoustic.wav", use_lexicon=use_lexicon, verbose=True
+            )
+        else:
+            speaker = Speaker.from_model_file("model.npz")
+            audio, audio_ph, ref_ph, known = speaker.speak(
+                word, f"test_{word}.wav", use_lexicon=use_lexicon, verbose=True
+            )
+    except FileNotFoundError as e:
+        print(f"Model not found: {e}")
+        print("Train first: python -m cursed_tts train")

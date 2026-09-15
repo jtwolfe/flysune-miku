@@ -90,6 +90,26 @@ def cmd_speak(args):
         print(f"\nSaved to: {output_path}")
         return
     
+    # Check for acoustic flies mode
+    if getattr(args, 'acoustic', False) or getattr(args, 'voice', None) == 'acoustic-flies':
+        from .speak import AcousticSpeaker
+        
+        if args.output:
+            output_path = args.output
+        else:
+            Path("artifacts/acoustic_flies").mkdir(parents=True, exist_ok=True)
+            output_path = f"artifacts/acoustic_flies/{word_clean}.wav"
+        
+        picker_model = getattr(args, 'picker_model', 'artifacts/eval/more_fly/swarm__A_B_data.npz')
+        acoustic_model = getattr(args, 'acoustic_model', 'model_acoustic.npz')
+        
+        speaker = AcousticSpeaker.from_model_files(picker_model, acoustic_model)
+        audio, audio_ph, ref_ph, known = speaker.speak(
+            args.word, output_path, verbose=True
+        )
+        print(f"\nSaved to: {output_path}")
+        return
+    
     # Check for swarm mode
     if getattr(args, 'swarm', False):
         from .speak import SwarmSpeaker
@@ -171,6 +191,20 @@ def cmd_speak_all(args):
                 print(f"Error on '{word}': {e}")
         
         print(f"\nStage 2 WAVs saved to: {output_dir}")
+        return
+    
+    # Check for acoustic flies mode
+    if getattr(args, 'acoustic', False) or getattr(args, 'voice', None) == 'acoustic-flies':
+        from .speak import AcousticSpeaker
+        
+        output_dir = Path(args.output_dir) / "acoustic_flies"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        picker_model = getattr(args, 'picker_model', 'artifacts/eval/more_fly/swarm__A_B_data.npz')
+        acoustic_model = getattr(args, 'acoustic_model', 'model_acoustic.npz')
+        
+        speaker = AcousticSpeaker.from_model_files(picker_model, acoustic_model)
+        results = speaker.speak_all(str(output_dir), verbose=True)
         return
     
     # Check for swarm mode
@@ -431,6 +465,25 @@ def cmd_eval_more_fly(args):
     print(format_ablation_table(results))
 
 
+# Acoustic Fly training command
+def cmd_train_acoustic_flies(args):
+    """Train acoustic fly head for speech production."""
+    from .train_acoustic_flies import train_and_save_acoustic_flies
+    
+    train_and_save_acoustic_flies(
+        output_path=args.output,
+        picker_path=args.picker,
+        max_words=args.words,
+        n_epochs=args.epochs,
+        early_stop_patience=args.patience,
+        hidden_dim=args.hidden,
+        learning_rate=args.lr,
+        seed=args.seed,
+        verbose=True,
+    )
+    print(f"\nAcoustic model saved to: {args.output}")
+
+
 # Legacy training commands
 def cmd_train_stage2(args):
     """[LEGACY] Train Stage 2 (mel spectrogram regression)."""
@@ -542,6 +595,17 @@ Examples:
                               help='Model path (default: model.npz)')
     speak_parser.add_argument('--lexicon', action='store_true',
                               help='Use dictionary phonemes (baseline, not cursed)')
+    # Acoustic flies flags
+    speak_parser.add_argument('--acoustic', action='store_true',
+                              help='Use trained acoustic flies (requires model_acoustic.npz)')
+    speak_parser.add_argument('--voice', type=str, default=None,
+                              choices=['formant', 'acoustic-flies'],
+                              help='Voice mode: formant (default) or acoustic-flies')
+    speak_parser.add_argument('--acoustic-model', type=str, default='model_acoustic.npz',
+                              help='Acoustic model path (default: model_acoustic.npz)')
+    speak_parser.add_argument('--picker-model', type=str,
+                              default='artifacts/eval/more_fly/swarm__A_B_data.npz',
+                              help='Picker swarm model for acoustic mode')
     # Swarm flag
     speak_parser.add_argument('--swarm', action='store_true',
                               help='Use one-phoneme-per-fly ensemble')
@@ -568,6 +632,17 @@ Examples:
                                    help='Model path (default: model.npz)')
     speak_all_parser.add_argument('--lexicon', action='store_true',
                                    help='Use dictionary phonemes (baseline)')
+    # Acoustic flies flags
+    speak_all_parser.add_argument('--acoustic', action='store_true',
+                                   help='Use trained acoustic flies')
+    speak_all_parser.add_argument('--voice', type=str, default=None,
+                                   choices=['formant', 'acoustic-flies'],
+                                   help='Voice mode: formant (default) or acoustic-flies')
+    speak_all_parser.add_argument('--acoustic-model', type=str, default='model_acoustic.npz',
+                                   help='Acoustic model path')
+    speak_all_parser.add_argument('--picker-model', type=str,
+                                   default='artifacts/eval/more_fly/swarm__A_B_data.npz',
+                                   help='Picker swarm model for acoustic mode')
     # Swarm flag
     speak_all_parser.add_argument('--swarm', action='store_true',
                                    help='Use one-phoneme-per-fly ensemble')
@@ -653,6 +728,27 @@ Examples:
     eval_mf_parser.add_argument('--output-dir', type=str, default='artifacts/eval/more_fly',
                                  help='Output directory for results')
     
+    # Train acoustic flies command
+    train_af_parser = subparsers.add_parser('train-acoustic-flies',
+                                             help='Train acoustic fly head for speech production')
+    train_af_parser.add_argument('--output', '-o', type=str, default='model_acoustic.npz',
+                                  help='Output model path')
+    train_af_parser.add_argument('--picker', type=str,
+                                  default='artifacts/eval/more_fly/swarm__A_B_data.npz',
+                                  help='Path to picker swarm model')
+    train_af_parser.add_argument('--epochs', type=int, default=10,
+                                  help='Training epochs (default: 10)')
+    train_af_parser.add_argument('--words', type=int, default=5000,
+                                  help='Max training words (default: 5000)')
+    train_af_parser.add_argument('--patience', type=int, default=3,
+                                  help='Early stop patience (default: 3)')
+    train_af_parser.add_argument('--hidden', type=int, default=128,
+                                  help='Hidden layer dimension')
+    train_af_parser.add_argument('--lr', type=float, default=0.01,
+                                  help='Learning rate')
+    train_af_parser.add_argument('--seed', type=int, default=42,
+                                  help='Random seed')
+    
     args = parser.parse_args()
     
     if args.command is None:
@@ -663,6 +759,7 @@ Examples:
         'train': cmd_train,
         'train-swarm': cmd_train_swarm,
         'train-more-fly': cmd_train_more_fly,
+        'train-acoustic-flies': cmd_train_acoustic_flies,
         'eval-more-fly': cmd_eval_more_fly,
         'speak': cmd_speak,
         'speak-all': cmd_speak_all,

@@ -1,0 +1,59 @@
+NOTICE - Third-Party Attribution
+
+================================================================================
+MARIAN ILUSTRADO Voicebank
+================================================================================
+
+This project supports the MARIAN ILUSTRADO voicebank for training acoustic
+fly targets. MARIAN ILUSTRADO is an English ARPAsing UTAU voicebank.
+
+Author: Kanabun
+Download: https://downloadmarian.carrd.co/
+ARPAsing Directory: https://arpasing.tubs.wtf/en/directories/voicebanks
+
+License Terms:
+- Free to use with attribution
+- May be used for any purpose including commercial works
+- Attribution required when using the voicebank
+
+When using MARIAN ILUSTRADO samples, please credit:
+  "Voice: MARIAN ILUSTRADO by Kanabun"
+
+================================================================================
+FlyWire / Hemibrain Connectome Data
+================================================================================
+
+The MORE FLY module supports optional integration with FlyWire and Hemibrain
+connectome data for biologically-faithful PN→KC wiring.
+
+FlyWire:
+- Dorkenwald et al. (2024). Neuronal wiring diagram of an adult brain
+- https://flywire.ai/
+
+Hemibrain:
+- Scheffer et al. (2020). A connectome and analysis of the adult Drosophila 
+  central brain. eLife 2020;9:e57443
+- https://neuprint.janelia.org/
+
+================================================================================
+CMUdict Pronunciation Dictionary
+================================================================================
+
+This project uses the Carnegie Mellon University Pronouncing Dictionary
+for phoneme references.
+
+- http://www.speech.cs.cmu.edu/cgi-bin/cmudict
+- Copyright (C) 1993-2015 Carnegie Mellon University
+
+================================================================================
+Project Mascot
+================================================================================
+
+The "Flysune Miku" project mascot (assets/flysune-miku.jpg) is original fan art
+created for this project. It is inspired by Hatsune Miku but is NOT affiliated
+with, endorsed by, or licensed from Crypton Future Media Inc.
+
+Do NOT claim that this project uses official Vocaloid/Crypton samples or is
+affiliated with Crypton Future Media.
+
+================================================================================

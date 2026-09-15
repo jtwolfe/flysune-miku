@@ -16,3 +16,7 @@ artifacts/compare_g2p/
 artifacts/stage2/
 artifacts/stage2b/
 *.bak
+
+# Large model files (train locally)
+model_acoustic.npz
+test_*.wav
