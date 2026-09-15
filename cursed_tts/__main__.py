@@ -90,22 +90,32 @@ def cmd_speak(args):
         print(f"\nSaved to: {output_path}")
         return
     
-    # Check for swarm mode
-    if getattr(args, 'swarm', False):
-        from .speak import SwarmSpeaker
+    # Two-swarm: picker G2P → speaker flies (NO KC in the speaker path)
+    if getattr(args, 'swarm', False) or getattr(args, 'speakers', False):
+        from .two_swarm import TwoSwarmSpeaker
         
         if args.output:
             output_path = args.output
         else:
-            Path("artifacts/swarm").mkdir(parents=True, exist_ok=True)
-            output_path = f"artifacts/swarm/{word_clean}.wav"
+            Path("artifacts/eval/two_swarm").mkdir(parents=True, exist_ok=True)
+            output_path = f"artifacts/eval/two_swarm/{word_clean}.wav"
         
-        swarm_model = getattr(args, 'swarm_model', 'model_swarm.npz')
-        vote_strategy = getattr(args, 'vote', None)
-        speaker = SwarmSpeaker.from_model_file(swarm_model, vote_strategy=vote_strategy)
-        audio, audio_ph, ref_ph, known = speaker.speak(
-            args.word, output_path, verbose=True
+        picker_model = getattr(args, 'swarm_model', 'model_swarm.npz')
+        if Path('model_more_fly_best.npz').exists() and picker_model == 'model_swarm.npz':
+            picker_model = 'model_more_fly_best.npz'
+        picker_type = 'more_fly' if 'more_fly' in picker_model else 'swarm'
+        speaker_path = getattr(args, 'speaker_model', 'model_speaker.npz')
+        if not Path(speaker_path).exists():
+            speaker_path = None
+        use_formant = getattr(args, 'formant_baseline', False)
+        
+        speaker = TwoSwarmSpeaker.from_model_files(
+            picker_path=picker_model,
+            speaker_path=speaker_path,
+            use_formant_baseline=use_formant,
+            picker_type=picker_type,
         )
+        speaker.speak(args.word, output_path, verbose=True)
         print(f"\nSaved to: {output_path}")
         return
     
@@ -431,6 +441,178 @@ def cmd_eval_more_fly(args):
     print(format_ablation_table(results))
 
 
+# =============================================================================
+# TWO-SWARM COMMANDS (Clean Architecture)
+# =============================================================================
+
+def cmd_train_speaker(args):
+    """Train speaker flies (synthesis, no KC dependency)."""
+    from .train_speaker import (
+        train_speaker_swarm, SpeakerTrainingConfig
+    )
+    from .phonemes import PHONEME_LIST
+    
+    # Determine phonemes
+    phones_arg = getattr(args, 'phones', None)
+    if phones_arg == 'demo':
+        from .specialist_fly import get_demo_phonemes
+        phonemes = get_demo_phonemes()
+        print(f"Training demo subset: {len(phonemes)} phonemes")
+    elif phones_arg == 'all' or phones_arg is None:
+        phonemes = None  # All 39
+        print("Training full speaker swarm: 39 phonemes")
+    else:
+        # Parse comma-separated phoneme list
+        phonemes = [p.strip().upper() for p in phones_arg.split(',')]
+        print(f"Training custom subset: {len(phonemes)} phonemes")
+    
+    # Create config
+    marian_dir = getattr(args, 'marian_dir', 'data/marian_crumbs')
+    voicebank = getattr(args, 'voicebank', None)
+    if voicebank:
+        from .train_speaker import extract_marian_crumbs
+        extract_marian_crumbs(
+            voicebank,
+            output_dir=marian_dir,
+            duration_cap_ms=getattr(args, 'duration_cap', 250.0),
+            verbose=True,
+        )
+
+    config = SpeakerTrainingConfig(
+        mode=getattr(args, 'mode', 'formant-bootstrap'),
+        n_iterations=getattr(args, 'iterations', 50),
+        learning_rate=getattr(args, 'lr', 0.01),
+        seed=args.seed,
+        marian_dir=marian_dir,
+        duration_cap_ms=getattr(args, 'duration_cap', 250.0),
+    )
+    
+    swarm = train_speaker_swarm(
+        output_path=args.output,
+        config=config,
+        phonemes=phonemes,
+        verbose=True,
+    )
+    
+    print(f"\nSpeaker swarm saved to: {args.output}")
+    print("\nTwo-swarm architecture:")
+    print("  - Recognition flies pick (G2P via KC/MB)")
+    print("  - Speaking flies speak (NO KC dependency)")
+
+
+def cmd_speak_two_swarm(args):
+    """Speak using two-swarm pipeline (picker → speakers)."""
+    from .two_swarm import TwoSwarmSpeaker
+    from pathlib import Path
+    
+    word_clean = ''.join(c for c in args.word.lower() if c.isalnum())
+    
+    # Determine output path
+    if args.output:
+        output_path = args.output
+    else:
+        Path("artifacts/eval/two_swarm").mkdir(parents=True, exist_ok=True)
+        output_path = f"artifacts/eval/two_swarm/{word_clean}.wav"
+    
+    # Determine picker type
+    picker_type = getattr(args, 'picker_type', 'swarm')
+    
+    # Load speaker
+    use_formant = getattr(args, 'formant_baseline', False)
+    speaker_path = getattr(args, 'speaker_model', 'model_speaker.npz')
+    if not Path(speaker_path).exists():
+        speaker_path = None  # Will use formant baseline
+    
+    speaker = TwoSwarmSpeaker.from_model_files(
+        picker_path=args.picker_model,
+        speaker_path=speaker_path,
+        use_formant_baseline=use_formant,
+        picker_type=picker_type,
+    )
+    
+    audio, picker_ph, ref_ph, known = speaker.speak(
+        args.word, output_path, verbose=True
+    )
+    
+    print(f"\nSaved to: {output_path}")
+
+
+def cmd_speak_two_swarm_sentence(args):
+    """Speak a sentence using two-swarm pipeline."""
+    from .two_swarm import TwoSwarmSpeaker
+    from pathlib import Path
+    
+    # Determine output path
+    if args.output:
+        output_path = args.output
+    else:
+        Path("artifacts/eval/two_swarm").mkdir(parents=True, exist_ok=True)
+        sentence_clean = '_'.join(args.text.lower().split()[:3])
+        output_path = f"artifacts/eval/two_swarm/sentence_{sentence_clean}.wav"
+    
+    # Load speaker
+    use_formant = getattr(args, 'formant_baseline', False)
+    speaker_path = getattr(args, 'speaker_model', 'model_speaker.npz')
+    if not Path(speaker_path).exists():
+        speaker_path = None
+    
+    picker_type = getattr(args, 'picker_type', 'swarm')
+    
+    speaker = TwoSwarmSpeaker.from_model_files(
+        picker_path=args.picker_model,
+        speaker_path=speaker_path,
+        use_formant_baseline=use_formant,
+        picker_type=picker_type,
+    )
+    
+    audio, phonemes = speaker.speak_sequence(
+        args.text, output_path, verbose=True
+    )
+
+
+def cmd_speak_two_swarm_demo(args):
+    """Generate demo WAVs using two-swarm pipeline."""
+    from .two_swarm import TwoSwarmSpeaker, compare_two_swarm_vs_formant
+    from pathlib import Path
+    
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Load speaker
+    use_formant = getattr(args, 'formant_baseline', False)
+    speaker_path = getattr(args, 'speaker_model', 'model_speaker.npz')
+    if not Path(speaker_path).exists():
+        speaker_path = None
+    
+    picker_type = getattr(args, 'picker_type', 'swarm')
+    
+    speaker = TwoSwarmSpeaker.from_model_files(
+        picker_path=args.picker_model,
+        speaker_path=speaker_path,
+        use_formant_baseline=use_formant,
+        picker_type=picker_type,
+    )
+    
+    # Generate demos (words + sentences + paragraph)
+    results = speaker.speak_eval_suite(str(output_dir), verbose=True)
+    
+    # Generate comparison if speaker model available
+    if speaker_path and Path(speaker_path).exists() and not use_formant:
+        print("\n" + "="*60)
+        print("Generating speaker vs formant comparison...")
+        demo_words = ['cat', 'dog', 'mushroom', 'hello']
+        comparison = compare_two_swarm_vs_formant(
+            demo_words,
+            args.picker_model,
+            speaker_path,
+            str(output_dir / "comparison"),
+            verbose=True,
+            picker_type=picker_type,
+        )
+    
+    print(f"\nTwo-swarm demos saved to: {output_dir}")
+
+
 # Legacy training commands
 def cmd_train_stage2(args):
     """[LEGACY] Train Stage 2 (mel spectrogram regression)."""
@@ -544,9 +726,15 @@ Examples:
                               help='Use dictionary phonemes (baseline, not cursed)')
     # Swarm flag
     speak_parser.add_argument('--swarm', action='store_true',
-                              help='Use one-phoneme-per-fly ensemble')
+                              help='Picker swarm then speaker flies (two-swarm, no KC in speakers)')
+    speak_parser.add_argument('--speakers', action='store_true',
+                              help='Same as --swarm: picker → speaker flies')
     speak_parser.add_argument('--swarm-model', type=str, default='model_swarm.npz',
-                              help='Swarm model path (default: model_swarm.npz)')
+                              help='Picker swarm model path (default: model_swarm.npz)')
+    speak_parser.add_argument('--speaker-model', type=str, default='model_speaker.npz',
+                              help='Speaker swarm model (default: model_speaker.npz)')
+    speak_parser.add_argument('--formant-baseline', action='store_true',
+                              help='A/B: formant crumbs instead of trained speakers')
     speak_parser.add_argument('--vote', type=str, default=None,
                               choices=['argmax', 'softmax', 'margin', 'calibrated'],
                               help='Override swarm voting strategy')
@@ -653,6 +841,75 @@ Examples:
     eval_mf_parser.add_argument('--output-dir', type=str, default='artifacts/eval/more_fly',
                                  help='Output directory for results')
     
+    # ==========================================================================
+    # TWO-SWARM COMMANDS (Clean Architecture)
+    # ==========================================================================
+    
+    # Train speaker flies
+    train_speaker_parser = subparsers.add_parser('train-speaker-flies',
+                                                   help='Train speaker flies (synthesis, no KC)')
+    train_speaker_parser.add_argument('--output', '-o', type=str, default='model_speaker.npz',
+                                       help='Output model path (default: model_speaker.npz)')
+    train_speaker_parser.add_argument('--phones', type=str, default=None,
+                                       help='Phoneme subset: "demo", "all", or comma-separated')
+    train_speaker_parser.add_argument('--mode', type=str, default='formant-bootstrap',
+                                       choices=['formant-bootstrap', 'marian-fit'],
+                                       help='Training mode (default: formant-bootstrap)')
+    train_speaker_parser.add_argument('--iterations', type=int, default=50,
+                                       help='Training iterations per phoneme (default: 50)')
+    train_speaker_parser.add_argument('--lr', type=float, default=0.01,
+                                       help='Learning rate (default: 0.01)')
+    train_speaker_parser.add_argument('--seed', type=int, default=42,
+                                       help='Random seed (default: 42)')
+    train_speaker_parser.add_argument('--marian-dir', type=str, default='data/marian_crumbs',
+                                       help='Marian crumbs directory (default: data/marian_crumbs)')
+    train_speaker_parser.add_argument('--voicebank', type=str, default=None,
+                                       help='Path to unpacked MARIAN ILUSTRADO folder (extracts capped crumbs first)')
+    train_speaker_parser.add_argument('--duration-cap', type=float, default=250.0,
+                                       help='Max crumb duration in ms (default: 250)')
+    
+    # Speak with two-swarm pipeline
+    speak_ts_parser = subparsers.add_parser('speak-two-swarm',
+                                             help='Speak using picker→speaker two-swarm pipeline')
+    speak_ts_parser.add_argument('word', type=str, help='Word to speak')
+    speak_ts_parser.add_argument('--output', '-o', type=str, default=None,
+                                  help='Output WAV path')
+    speak_ts_parser.add_argument('--picker-model', type=str, default='model_swarm.npz',
+                                  help='Picker swarm model (default: model_swarm.npz)')
+    speak_ts_parser.add_argument('--speaker-model', type=str, default='model_speaker.npz',
+                                  help='Speaker swarm model (default: model_speaker.npz)')
+    speak_ts_parser.add_argument('--picker-type', type=str, default='swarm',
+                                  choices=['swarm', 'more_fly'],
+                                  help='Picker type (default: swarm)')
+    speak_ts_parser.add_argument('--formant-baseline', action='store_true',
+                                  help='Use formant synthesis instead of trained speakers')
+    
+    # Speak sentence with two-swarm
+    speak_ts_sent_parser = subparsers.add_parser('speak-two-swarm-sentence',
+                                                   help='Speak sentence using two-swarm pipeline')
+    speak_ts_sent_parser.add_argument('text', type=str, help='Sentence to speak')
+    speak_ts_sent_parser.add_argument('--output', '-o', type=str, default=None,
+                                       help='Output WAV path')
+    speak_ts_sent_parser.add_argument('--picker-model', type=str, default='model_swarm.npz',
+                                       help='Picker swarm model')
+    speak_ts_sent_parser.add_argument('--speaker-model', type=str, default='model_speaker.npz',
+                                       help='Speaker swarm model')
+    speak_ts_sent_parser.add_argument('--picker-type', type=str, default='swarm',
+                                       choices=['swarm', 'more_fly'])
+    speak_ts_sent_parser.add_argument('--formant-baseline', action='store_true')
+    
+    # Demo generation with two-swarm
+    speak_ts_demo_parser = subparsers.add_parser('speak-two-swarm-demo',
+                                                   help='Generate two-swarm demo WAVs')
+    speak_ts_demo_parser.add_argument('--output-dir', '-o', type=str, 
+                                       default='artifacts/eval/two_swarm',
+                                       help='Output directory')
+    speak_ts_demo_parser.add_argument('--picker-model', type=str, default='model_swarm.npz')
+    speak_ts_demo_parser.add_argument('--speaker-model', type=str, default='model_speaker.npz')
+    speak_ts_demo_parser.add_argument('--picker-type', type=str, default='swarm',
+                                       choices=['swarm', 'more_fly'])
+    speak_ts_demo_parser.add_argument('--formant-baseline', action='store_true')
+    
     args = parser.parse_args()
     
     if args.command is None:
@@ -670,6 +927,11 @@ Examples:
         'info': cmd_info,
         'train-stage2': cmd_train_stage2,
         'train-stage2b': cmd_train_stage2b,
+        # Two-swarm commands
+        'train-speaker-flies': cmd_train_speaker,
+        'speak-two-swarm': cmd_speak_two_swarm,
+        'speak-two-swarm-sentence': cmd_speak_two_swarm_sentence,
+        'speak-two-swarm-demo': cmd_speak_two_swarm_demo,
     }
     
     commands[args.command](args)

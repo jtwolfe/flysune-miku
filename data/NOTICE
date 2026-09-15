@@ -1,0 +1,18 @@
+MARIAN (ILUSTRADO) attribution
+================================
+
+The optional speaker-training crumbs under data/marian_crumbs/ are
+duration-capped slices extracted from MARIAN (ILUSTRADO), an English
+ARPAsing OpenUtau voicebank.
+
+Voicebank name: MARIAN (ILUSTRADO)
+Voice provider / author: Kanabun
+Official download: https://downloadmarian.carrd.co/
+(ILUSTRADO Series — MediaFire: MARIAN_ILUSTRADO_Series.zip)
+
+Terms of use require attributing the voicebank name exactly as MARIAN
+when publishing work that uses it. See Kanabun's terms on the download
+page. This repository redistributes only short, capped phoneme crumbs
+used to fit parametric speaker flies — not the full voicebank.
+
+Do not use these crumbs with AI-generated artwork (author prohibition).
