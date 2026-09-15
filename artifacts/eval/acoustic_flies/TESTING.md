@@ -38,6 +38,37 @@ Two modes:
    - Used when MARIAN unavailable
    - Documents the gap between synthetic and real targets
 
+### Cloud Bootstrap Note
+
+**Important**: The initial cloud agent run (commit f15c84e) used formant-only targets because:
+1. MARIAN requires manual download from MediaFire
+2. A bug in `try_load_marian_targets` imported non-existent `find_voicebank_path`
+
+This was fixed in a subsequent commit. To train with real MARIAN targets:
+
+```bash
+# 1. Download MARIAN ILUSTRADO manually from https://downloadmarian.carrd.co/
+# 2. Extract to data/marian_crumbs/
+# 3. Retrain:
+python -m cursed_tts train-acoustic-flies --epochs 10 --words 5000
+```
+
+### Alias Resolution
+
+MARIAN (and other Arpasing voicebanks) use various alias formats in oto.ini:
+- Direct: `aa`, `k`, `s`
+- Numbered: `aa1`, `aa2`
+- Standalone vowels: `- aa` (dash prefix)
+- CV pairs: `k aa`, `s iy`
+
+The loader tries all variants to maximize sample coverage.
+
+### Duration Capping
+
+Arpasing voicebanks often contain multi-second diphone recordings. To prevent
+these from poisoning training targets, loaded samples are capped at **250ms**
+(`MAX_TARGET_DURATION_MS`) before extracting voice parameters.
+
 Current training used: **formant (bootstrap mode)** - MARIAN download requires manual MediaFire fetch.
 
 ## Demo Files

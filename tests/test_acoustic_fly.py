@@ -228,6 +228,85 @@ class TestIntegration:
         assert 0 < kc.sum() < len(kc)  # Sparse but not empty
 
 
+class TestVoicebankResolution:
+    """Test voicebank path and alias resolution."""
+    
+    def test_find_voicebank_path_returns_none_when_missing(self):
+        """Test that find_voicebank_path returns None when no voicebank exists."""
+        from cursed_tts.voicebanks.utau_singer import find_voicebank_path, VOICEBANK_SEARCH_PATHS
+        
+        # This test verifies the function doesn't crash and returns None
+        # when voicebank isn't installed (which is the common case in CI)
+        result = find_voicebank_path()
+        
+        # Result should be None if no voicebank is installed,
+        # or a valid Path if it is
+        assert result is None or (isinstance(result, Path) and result.exists())
+    
+    def test_alias_variants_generation(self):
+        """Test that alias variants are generated correctly."""
+        from cursed_tts.voicebanks.utau_singer import get_arpasing_alias_variants
+        
+        # Test vowel
+        aa_variants = get_arpasing_alias_variants('AA')
+        assert 'aa' in aa_variants
+        assert 'aa1' in aa_variants
+        assert '- aa' in aa_variants
+        # Should include VC combinations
+        assert any('k aa' in v for v in aa_variants)
+        
+        # Test consonant
+        k_variants = get_arpasing_alias_variants('K')
+        assert 'k' in k_variants
+        assert 'k1' in k_variants
+        # Should include CV combinations
+        assert any('k aa' in v for v in k_variants)
+    
+    def test_resolve_phoneme_sample_with_mock(self):
+        """Test phoneme resolution with mock samples dict."""
+        from cursed_tts.voicebanks.utau_singer import resolve_phoneme_sample
+        
+        # Create mock samples dict
+        mock_samples = {
+            'aa': (Path('/fake/aa.wav'), None),
+            'k aa': (Path('/fake/k_aa.wav'), None),
+            '- iy': (Path('/fake/dash_iy.wav'), None),
+            't1': (Path('/fake/t1.wav'), None),
+        }
+        
+        # Test direct match
+        result = resolve_phoneme_sample('AA', mock_samples)
+        assert result is not None
+        assert result[2] == 'aa'  # matched alias
+        
+        # Test numbered variant
+        result = resolve_phoneme_sample('T', mock_samples)
+        assert result is not None
+        assert result[2] == 't1'
+        
+        # Test standalone vowel with dash
+        result = resolve_phoneme_sample('IY', mock_samples)
+        assert result is not None
+        assert result[2] == '- iy'
+        
+        # Test missing phoneme
+        result = resolve_phoneme_sample('ZH', mock_samples)
+        assert result is None
+    
+    def test_try_load_marian_targets_graceful_fallback(self):
+        """Test that try_load_marian_targets falls back gracefully."""
+        from cursed_tts.train_acoustic_flies import try_load_marian_targets
+        from cursed_tts.acoustic_fly import AcousticConfig
+        
+        config = AcousticConfig()
+        
+        # Should return None and not crash when voicebank not available
+        result = try_load_marian_targets(config, verbose=False)
+        
+        # Result should be None (no voicebank) or a dict (voicebank found)
+        assert result is None or isinstance(result, dict)
+
+
 class TestSynthesis:
     """Test audio synthesis from parameters."""
     

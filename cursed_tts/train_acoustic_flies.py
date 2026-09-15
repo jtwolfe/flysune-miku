@@ -136,12 +136,26 @@ def try_load_marian_targets(
     
     Returns None if MARIAN not available, in which case
     we fall back to formant targets.
+    
+    Uses alias resolution to find samples:
+    - Direct: 'aa'
+    - Numbered: 'aa1', 'aa2'
+    - Standalone: '- aa'
+    - CV pairs: 'k aa', 's iy'
+    
+    Caps loaded audio to MAX_TARGET_DURATION_MS (~250ms) to prevent
+    multi-second diphone windows from poisoning targets.
     """
     try:
         from .voicebanks.utau_singer import (
-            UTAUSingerSwarm, find_voicebank_path, load_utau_sample
+            find_voicebank_path,
+            find_voicebank_samples, 
+            load_utau_sample,
+            resolve_phoneme_sample,
+            MAX_TARGET_DURATION_MS,
         )
         from .voicebanks.arpasing_map import arpabet_to_arpasing
+        from .phonemes import VOWELS
         
         marian_path = find_voicebank_path()
         if marian_path is None:
@@ -152,40 +166,69 @@ def try_load_marian_targets(
         if verbose:
             print(f"Loading MARIAN targets from {marian_path}")
         
-        from .voicebanks.utau_singer import find_voicebank_samples, load_utau_sample
-        
         samples = find_voicebank_samples(marian_path)
         if not samples:
             if verbose:
                 print("No samples found in MARIAN, using formant targets")
             return None
         
+        if verbose:
+            print(f"  Found {len(samples)} samples in voicebank")
+        
         targets = {}
+        loaded_count = 0
+        failed_phonemes = []
+        
         for phoneme in config.phonemes:
             p = strip_stress(phoneme)
-            arpasing = arpabet_to_arpasing(p)
             
-            if arpasing in samples:
-                wav_path, oto_entry = samples[arpasing]
+            # Use alias resolution to find the sample
+            result = resolve_phoneme_sample(p, samples)
+            
+            if result is not None:
+                wav_path, oto_entry, matched_alias = result
                 try:
+                    # Determine if vowel for duration defaults
+                    is_vowel = p in VOWELS
+                    
+                    # Load with strict duration cap for training targets
                     audio = load_utau_sample(
                         wav_path,
                         target_sr=config.sample_rate,
                         oto_entry=oto_entry,
+                        max_duration_ms=MAX_TARGET_DURATION_MS,  # Cap at ~250ms
+                        is_vowel=is_vowel,
                     )
+                    
+                    # Extract voice parameters from capped audio
                     params = extract_voice_params(audio, config)
                     targets[p] = params.to_array()
+                    loaded_count += 1
+                    
+                    if verbose and loaded_count <= 5:
+                        print(f"  {p} -> '{matched_alias}' ({len(audio)/config.sample_rate*1000:.0f}ms)")
+                        
                 except Exception as e:
+                    failed_phonemes.append(p)
                     if verbose:
-                        print(f"  Warning: Could not load {p}: {e}")
+                        print(f"  Warning: Could not load {p} ('{matched_alias}'): {e}")
+            else:
+                failed_phonemes.append(p)
         
-        if len(targets) < 10:
+        if verbose:
+            if loaded_count > 5:
+                print(f"  ... and {loaded_count - 5} more phonemes")
+            if failed_phonemes:
+                print(f"  Missing: {', '.join(failed_phonemes[:10])}" + 
+                      (f" (+{len(failed_phonemes)-10} more)" if len(failed_phonemes) > 10 else ""))
+        
+        if loaded_count < 10:
             if verbose:
-                print(f"Only {len(targets)} MARIAN samples loaded, using formant fallback")
+                print(f"Only {loaded_count} MARIAN samples loaded, using formant fallback")
             return None
         
         if verbose:
-            print(f"Loaded {len(targets)} MARIAN targets")
+            print(f"Loaded {loaded_count}/{len(config.phonemes)} MARIAN targets")
         return targets
         
     except ImportError as e:

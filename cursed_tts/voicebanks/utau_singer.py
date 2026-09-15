@@ -45,6 +45,106 @@ VOICEBANK_SEARCH_PATHS = [
     Path("/opt/voicebanks/marian"),
 ]
 
+# Maximum crumb duration for training targets (ms)
+MAX_TARGET_DURATION_MS = 250
+
+
+def find_voicebank_path() -> Optional[Path]:
+    """
+    Find the MARIAN voicebank path by searching known locations.
+    
+    Returns:
+        Path to voicebank directory, or None if not found.
+    """
+    for search_path in VOICEBANK_SEARCH_PATHS:
+        if search_path.exists():
+            # Check for oto.ini or WAV files
+            if (search_path / "oto.ini").exists():
+                return search_path
+            wav_files = list(search_path.glob("*.wav"))
+            if wav_files:
+                return search_path
+            # Check subdirectories
+            for subdir in search_path.iterdir():
+                if subdir.is_dir():
+                    if (subdir / "oto.ini").exists() or list(subdir.glob("*.wav")):
+                        return subdir
+    return None
+
+
+def get_arpasing_alias_variants(phoneme: str) -> List[str]:
+    """
+    Generate alias variants to try when looking up a phoneme in oto.ini.
+    
+    Arpasing voicebanks may use different naming conventions:
+    - Simple: 'aa', 'k', 's'
+    - Numbered: 'aa1', 'aa2'  
+    - CV pairs: 'k aa', 's iy'
+    - With dash: '- aa' (standalone vowel)
+    
+    Args:
+        phoneme: ARPAbet phoneme (e.g., 'AA', 'K')
+    
+    Returns:
+        List of alias variants to try, in priority order
+    """
+    base = arpabet_to_arpasing(phoneme)
+    
+    variants = [
+        base,           # Direct: 'aa'
+        f"{base}1",     # Numbered: 'aa1'
+        f"- {base}",    # Standalone vowel: '- aa'
+        f"{base}2",     # Numbered alt: 'aa2'
+    ]
+    
+    # Add common CV combinations for consonants
+    if phoneme.upper() in ['K', 'T', 'P', 'B', 'D', 'G', 'S', 'Z', 'F', 'V', 
+                            'M', 'N', 'L', 'R', 'W', 'Y', 'HH', 'CH', 'JH',
+                            'SH', 'ZH', 'TH', 'DH', 'NG']:
+        # Try with common following vowels
+        for vowel in ['aa', 'ae', 'ah', 'iy', 'uw', 'eh', 'ow']:
+            variants.append(f"{base} {vowel}")
+    
+    # Add VC combinations for vowels
+    if phoneme.upper() in ['AA', 'AE', 'AH', 'AO', 'EH', 'ER', 'IH', 'IY', 
+                            'UH', 'UW', 'AW', 'AY', 'EY', 'OW', 'OY']:
+        # Try with common preceding consonants
+        for cons in ['k', 't', 'p', 's', 'm', 'n', 'l', 'r']:
+            variants.append(f"{cons} {base}")
+    
+    return variants
+
+
+def resolve_phoneme_sample(
+    phoneme: str,
+    samples: Dict[str, Tuple[Path, Optional['OtoEntry']]],
+) -> Optional[Tuple[Path, Optional['OtoEntry'], str]]:
+    """
+    Resolve a phoneme to a sample, trying multiple alias variants.
+    
+    Args:
+        phoneme: ARPAbet phoneme
+        samples: Dict of available samples from find_voicebank_samples
+    
+    Returns:
+        Tuple of (wav_path, oto_entry, matched_alias) or None if not found
+    """
+    variants = get_arpasing_alias_variants(phoneme)
+    
+    for variant in variants:
+        if variant in samples:
+            wav_path, oto_entry = samples[variant]
+            return wav_path, oto_entry, variant
+    
+    # Try case-insensitive match
+    samples_lower = {k.lower(): (k, v) for k, v in samples.items()}
+    for variant in variants:
+        if variant.lower() in samples_lower:
+            orig_key, (wav_path, oto_entry) = samples_lower[variant.lower()]
+            return wav_path, oto_entry, orig_key
+    
+    return None
+
 
 @dataclass
 class OtoEntry:
