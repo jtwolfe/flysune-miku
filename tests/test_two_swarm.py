@@ -413,6 +413,68 @@ class TestMarianAliasAndCaps:
         assert 'cursed_tts.more_fly' not in ts.__dict__
 
 
+class TestPunctuationPauses:
+    """Comma/period silence on the sentence concat path (no speaker retraining)."""
+
+    def test_tokenize_comma_and_period_pauses(self):
+        from cursed_tts.two_swarm import (
+            tokenize_spoken_text, WORD_GAP_S, COMMA_PAUSE_S, PERIOD_PAUSE_S,
+        )
+
+        tokens = tokenize_spoken_text("hello, world. yes")
+        assert [w for w, _ in tokens] == ['hello', 'world', 'yes']
+        pauses = {w: p for w, p in tokens}
+        assert pauses['hello'] == COMMA_PAUSE_S
+        assert pauses['world'] == PERIOD_PAUSE_S
+        assert pauses['yes'] == 0.0
+
+        glued = tokenize_spoken_text("hello world yes")
+        assert [w for w, _ in glued] == ['hello', 'world', 'yes']
+        assert glued[0][1] == WORD_GAP_S
+        assert glued[1][1] == WORD_GAP_S
+        assert glued[2][1] == 0.0
+
+    def test_bare_punctuation_attaches_to_previous_word(self):
+        from cursed_tts.two_swarm import tokenize_spoken_text, PERIOD_PAUSE_S
+
+        tokens = tokenize_spoken_text("hello .")
+        assert tokens == [('hello', PERIOD_PAUSE_S)]
+
+    def test_punctuation_stripped_from_spoken_words(self):
+        from cursed_tts.two_swarm import tokenize_spoken_text
+
+        tokens = tokenize_spoken_text("Avocados grow on trees.")
+        assert [w.lower() for w, _ in tokens] == ['avocados', 'grow', 'on', 'trees']
+
+    def test_speak_sequence_period_is_longer_than_glued(self, picker_model_path=None):
+        """Duration check: punctuation adds silence, not extra phones."""
+        from cursed_tts.two_swarm import (
+            TwoSwarmSpeaker, COMMA_PAUSE_S, PERIOD_PAUSE_S, WORD_GAP_S, SAMPLE_RATE,
+        )
+        from cursed_tts.synth import synthesize_all_phonemes, concatenate_phonemes
+        from cursed_tts.lexicon import get_phonemes
+        from cursed_tts.phonemes import strip_stress
+
+        class DummyPicker:
+            def predict_word(self, word, n_phonemes):
+                ph = [strip_stress(p) for p in get_phonemes(word, allow_g2p=True)]
+                if not ph:
+                    ph = ['AH']
+                if len(ph) >= n_phonemes:
+                    return ph[:n_phonemes]
+                return ph + [ph[-1]] * (n_phonemes - len(ph))
+
+        speaker = TwoSwarmSpeaker(
+            DummyPicker(), speaker_swarm=None, use_formant_baseline=True
+        )
+        glued, ph_g = speaker.speak_sequence("yes no", verbose=False)
+        punct, ph_p = speaker.speak_sequence("yes, no.", verbose=False)
+        assert ph_g == ph_p
+        extra = (COMMA_PAUSE_S - WORD_GAP_S) + PERIOD_PAUSE_S
+        extra_samples = int(round(extra * SAMPLE_RATE))
+        assert abs(len(punct) - len(glued) - extra_samples) <= 2
+
+
 # Integration test
 class TestIntegration:
     """End-to-end integration tests."""

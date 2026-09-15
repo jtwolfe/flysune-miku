@@ -239,7 +239,7 @@ python -m cursed_tts train-speaker-flies --iterations 50
 # Speak using two-swarm pipeline
 python -m cursed_tts speak-two-swarm mushroom
 
-# Speak a sentence
+# Speak a sentence (`,` / `.` insert 300ms / 550ms silence)
 python -m cursed_tts speak-two-swarm-sentence "hello world"
 
 # Generate demo suite
