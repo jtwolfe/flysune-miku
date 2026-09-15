@@ -16,7 +16,7 @@ avocado-growth paragraph used for this re-render.
 
 | File | What |
 |------|------|
-| `avocados_grow_speakers.wav` | fly-only render with punctuation pauses |
+| `avocados_grow_speakers.wav` | fly-only render with punctuation pauses (~15.5s) |
 | `avocados_grow_speakers.zip` | same WAV, zipped for download |
 
 ```bash
