@@ -1,5 +1,7 @@
 # MORE FLY Testing Findings
 
+Historical picker ablations (G2P only). **Current speak path:** picker → Marian speakers — see repo `TESTING.md` and `v0.3.1-punct-pauses`. Do not treat these WAVs as the freeze listen reference.
+
 This document summarizes the testing and ablation results for the MORE FLY enhancements to the fly-faithful G2P classifier.
 
 ## Ablation Configurations

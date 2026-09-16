@@ -1,23 +1,19 @@
-# Fly-only avocado paragraph
+# Fly-only avocado (listen reference)
 
-Picker G2P (`model_more_fly_best.npz`) → Marian-fit speaker flies (`model_speaker.npz`).
-Not lexicon phones, not formant baseline.
+**Freeze:** `v0.3.1-punct-pauses` / `freeze/punct-pauses-acceptable`
+
+Picker G2P (`model_more_fly_best.npz`) → Marian-fit speaker flies (`model_speaker.npz`). Not lexicon phones, not formant baseline, not KC→voice.
 
 **Text:**
 
 > Avocados grow on trees. The trees are tall, and the fruit is green. When avocados are ripe, people pick them. The fruit has a large seed inside.
 
-Prior avocado A/B / `avocados_grow_speakers` paths were not in `main` after the
-`v0.3.0-speakers-lexicon` freeze, so this is the standard multi-sentence
-avocado-growth paragraph used for this re-render.
-
-**Pauses** (see `cursed_tts.two_swarm`): 150ms inter-word, 300ms after `,`,
-550ms after `.`. Punctuation is stripped before picker/speakers.
+**Pauses** (`cursed_tts.two_swarm`): 150 ms inter-word, 300 ms after `,`, 550 ms after `.`. Punctuation is stripped before picker/speakers.
 
 | File | What |
 |------|------|
-| `avocados_grow_speakers.wav` | fly-only render with punctuation pauses (~15.5s) |
-| `avocados_grow_speakers.zip` | same WAV, zipped for download |
+| `avocados_grow_speakers.wav` | fly-only render with punctuation pauses (~15.5 s) |
+| `avocados_grow_speakers.zip` | same WAV, zipped |
 
 ```bash
 python3 -m cursed_tts speak-two-swarm-sentence \

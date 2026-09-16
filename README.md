@@ -1,4 +1,4 @@
-# Cursed TTS: G2P Mushroom Body Classifier
+# Cursed TTS: Flysune Miku
 
 <p align="center">
   <img src="assets/flysune-miku.jpg" alt="Flysune Miku - Project Mascot" width="300">
@@ -8,102 +8,112 @@
   <small>(Project mascot art. Not affiliated with Crypton Future Media.)</small>
 </p>
 
-A cursed text-to-speech toy that uses a **simplified mushroom body neural circuit as a grapheme-to-phoneme (G2P) classifier**. Inspired by the [FlyWire hiragana OCR demo](https://hae.satoru.net/) — a real fruit fly brain learning to read Japanese characters.
+A cursed text-to-speech toy: **recognition flies pick phonemes; speaking flies speak them.** Inspired by the [FlyWire hiragana OCR demo](https://hae.satoru.net/).
 
-## The Correct Architecture
+## Current architecture
 
-The mushroom body is a **CLASSIFIER**, not an acoustic signal generator:
+Two swarms. The picker never sings; the speakers never see Kenyon cells.
 
 ```
-Word ("cat")
+word / sentence
     ↓
-Letter context encoding (character n-grams, position)
+PICKER SWARM  (MORE FLY G2P, KC/MB classifier)
+    ↓  phoneme ids only   e.g. [K AE T]
+SPEAKER SWARM  (Marian-fit flies, NO KC)
     ↓
-Projection Neurons (PNs) — input layer
-    ↓
-Kenyon Cells (KCs) — sparse expansion (~10% active, FlyWire-style)
-    ↓
-MBONs — output compartments (39 phoneme classes)
-    ↓
-Winner-take-all → Predicted phoneme
-    ↓
-Clean formant synthesis → Audio
+WAV  (+ silence after punctuation)
 ```
 
-The MB classifies **letter context → phoneme**, just like the OCR fly classifies images → hiragana. Audio is rendered by a **separate clean synthesizer** (concatenative formant crumbs), not by regressing acoustic features from neural activity.
+| Swarm | Job | Sees |
+|-------|-----|------|
+| **Picker** | letter context → phoneme list | graphemes, KC/MB |
+| **Speakers** | phoneme id → audio crumb | phone id (+ optional prev-phone / position). **Never KC.** |
 
-## Why Stage 2/2b Were Wrong
+**This freeze (`v0.3.1-punct-pauses`):** fly-only speak path — picker G2P → Marian speaker flies, with sentence pauses. Listen to [`artifacts/eval/two_swarm/avocado/`](artifacts/eval/two_swarm/avocado/). Lexicon phones → same speakers is still available (the `v0.3.0` hybrid); it is not this freeze's listen path.
 
-Previous attempts (Stage 2: mel + Griffin-Lim, Stage 2b: formant track regression) tried to generate audio directly from MB activity trajectories. This was the wrong objective:
+### Punctuation pauses
 
-- **Stage 2**: MB trajectory → mel spectrogram → Griffin-Lim = scratchy audio
-- **Stage 2b**: MB trajectory → formant tracks → synthesis = better but still wrong
+Concat (`speak-two-swarm-sentence` / `speak_sequence`) does **not** send `,` or `.` to either swarm. Silence is inserted at join time:
 
-The problem: we were treating the MB as an **acoustic generator** instead of a **classifier**. The real fly MB is a classifier (odor → mushroom body → behavior), not a signal generator.
+| Mark | Pause |
+|------|------:|
+| word gap (no punct) | 150 ms |
+| `,` | 300 ms |
+| `.` | 550 ms |
 
-**The fix**: MB = G2P classifier (letter context → phoneme), Synth = clean renderer (phoneme → audio crumbs).
+### Rejected: KC → voice
 
-## Quick Start
+[PR #6](https://github.com/jtwolfe/flysune-miku/pull/6) stacked an acoustic head on picker KC activity (`word → picker KC → voice`). Words collapsed toward the same buzz. **Do not revive that fork.** Speakers take phoneme ids only.
+
+Older wrong objectives (Stage 2 mel + Griffin-Lim, Stage 2b formant-track regression from MB trajectories) are the same mistake: treating the mushroom body as an acoustic generator. They stay in the tree as `stage2.py` / `stage2b.py` only.
+
+## Listen
+
+**Reference render (this freeze):** picker G2P + Marian speakers + pauses.
+
+> Avocados grow on trees. The trees are tall, and the fruit is green. When avocados are ripe, people pick them. The fruit has a large seed inside.
+
+- WAV: [`artifacts/eval/two_swarm/avocado/avocados_grow_speakers.wav`](artifacts/eval/two_swarm/avocado/avocados_grow_speakers.wav) (~15.5 s)
+- Notes: [`artifacts/eval/two_swarm/avocado/README.md`](artifacts/eval/two_swarm/avocado/README.md)
+
+Word / sentence suites: [`artifacts/eval/two_swarm/`](artifacts/eval/two_swarm/).
+
+## Quick start
 
 ```bash
-# Install
 pip install -e .
-
-# Download NLTK data for G2P fallback
 python -c "import nltk; nltk.download('averaged_perceptron_tagger_eng')"
 
-# Train G2P mushroom body on CMUdict (~6 minutes)
-python -m cursed_tts train --epochs 15 --words 10000
+# Fly-only speak (needs checked-in models)
+python -m cursed_tts speak-two-swarm mushroom \
+  --picker-model model_more_fly_best.npz --picker-type more_fly \
+  --speaker-model model_speaker.npz
 
-# Speak using MB predictions (default - cursed G2P)
-python -m cursed_tts speak mushroom
+python -m cursed_tts speak-two-swarm-sentence \
+  "Avocados grow on trees. The trees are tall, and the fruit is green." \
+  --picker-model model_more_fly_best.npz --picker-type more_fly \
+  --speaker-model model_speaker.npz
 
-# Speak using dictionary phonemes (baseline)
-python -m cursed_tts speak mushroom --lexicon
-
-# Generate all demo WAVs
-python -m cursed_tts speak-all
-
-# Evaluate accuracy
-python -m cursed_tts eval
+python -m cursed_tts speak-two-swarm-demo \
+  --picker-model model_more_fly_best.npz --picker-type more_fly \
+  --speaker-model model_speaker.npz
 ```
 
-## The Biology
+`--formant-baseline` keeps the same picker phones but renders with the old formant crumbs (A/B only).
 
-### Mushroom Body as Classifier
+**Lexicon hybrid** (phones from CMUdict/G2P, same Marian speakers — `v0.3.0` path): `generate_speaker_demo()` without a picker, or the old `speak --lexicon` formant baseline. Not the avocado listen reference.
 
-Like the hiragana OCR demo, our MB learns to classify inputs:
+Do **not** retrain picker or speakers for this freeze. Tests:
 
-1. **Input encoding**: Letter context → PN-like activity (character n-grams, position features)
-2. **Sparse expansion**: PNs → KCs via random connectivity (~10% KC sparsity, FlyWire-style)
-3. **Classification**: KC activity → MBON compartments (39 phoneme classes)
-4. **Winner-take-all**: Minimum MBON input wins (inhibitory logic, matching real fly)
+```bash
+python -m pytest tests/test_two_swarm.py -v
+```
 
-### Learning Rule (Hige 2015 / Handler 2019)
+Full commands and pause checks: [TESTING.md](TESTING.md).
 
-Dopamine-modulated anti-Hebbian learning — **only update when wrong**:
+## Freeze tags
 
-- **DEPRESS** KC→correct_MBON synapses (less input = wins more easily)
-- **POTENTIATE** KC→wrong_MBON synapses (more input = wins less)
+Do not rewrite these tips.
 
-This matches the real mushroom body plasticity observed in flies.
+| Tag | Branch | What it freezes |
+|-----|--------|-----------------|
+| `v0.3.1-punct-pauses` | `freeze/punct-pauses-acceptable` | **This freeze.** Picker G2P → Marian speakers; `,` 300 ms / `.` 550 ms; avocado listen reference |
+| `v0.3.0-speakers-lexicon` | `freeze/speakers-lexicon-acceptable` | Lexicon phones → Marian-fit speakers (hybrid baseline) |
+| `v0.2.0-more-fly` | `freeze/more-fly-acceptable` | MORE FLY picker |
+| `v0.1.0-g2p-acceptable` | `freeze/g2p-acceptable` | Single-MB G2P + formant crumbs |
 
-## Performance
+## Earlier experiments (don't start here)
 
-After training on 10,000 CMUdict words (15 epochs, ~6 minutes):
+Kept for archaeology; none of these are the default speak path.
 
-| Metric | Value |
-|--------|-------|
-| Demo word phoneme accuracy | 100% |
-| Demo word accuracy | 100% |
-| Held-out test phoneme accuracy | ~71% |
-| Held-out word accuracy | ~24% |
+- **Single MB G2P** (`train` / `speak`): one mushroom body, 39 MBON classes, formant crumbs. Fine as a classifier demo.
+- **Specialist picker swarm** (`train-swarm` / `speak --swarm`): one fly per phoneme. Educational, usually worse than a single MB.
+- **MORE FLY** (`train-more-fly`): cues + curriculum + optional hemibrain wiring / DAN teaching. **This freeze's picker.** Random `+A+B_data` is the recommended train config; hemibrain wiring is experimental. Ablations: `artifacts/eval/more_fly/`.
+- **Singer-fly MoE voices** (`singer_fly.py`): per-phone F0/formant choir on formant crumbs. Superseded by Marian-fit speaker flies.
 
-The test accuracy reflects the difficulty of English G2P — spelling is highly irregular. Demo words achieve 100% because they're in the training set.
+## Phonemes
 
-## Phoneme Inventory (39 phonemes)
-
-Full CMUdict-compatible ARPAbet:
+39-class CMUdict ARPAbet (stress stripped):
 
 | Type | Phonemes |
 |------|----------|
@@ -116,558 +126,26 @@ Full CMUdict-compatible ARPAbet:
 | Liquids | L, R |
 | Semivowels | W, Y |
 
-## CLI Reference
+## Speakers (already fitted)
+
+Marian-fit speaker flies live in `model_speaker.npz`. Crumbs were duration-capped slices of **MARIAN (ILUSTRADO)** ([download](https://downloadmarian.carrd.co/), attribution in `data/NOTICE`). `ZH` had no oto alias and used a formant target. Do not re-fit for this freeze.
 
 ```bash
-# Training (G2P classifier)
-python -m cursed_tts train                  # Default: 15 epochs, 10k words
-python -m cursed_tts train --epochs 25      # More training
-python -m cursed_tts train --words 5000     # Smaller vocabulary
-
-# Speaking (MB predictions = cursed G2P)
-python -m cursed_tts speak cat              # MB predicts phonemes
-python -m cursed_tts speak mushroom         # Works on any word
-
-# Speaking (dictionary baseline)
-python -m cursed_tts speak cat --lexicon    # CMUdict/G2P phonemes
-
-# Batch generation
-python -m cursed_tts speak-all              # Demo + OOV words
-python -m cursed_tts speak-all --lexicon    # Dictionary baseline
-
-# Evaluation
-python -m cursed_tts eval                   # Accuracy on demo/test
-
-# Info
-python -m cursed_tts info                   # Phoneme inventory, stats
-```
-
-## Project Structure
-
-```
-cursed_tts/
-├── __init__.py          # Package metadata
-├── __main__.py          # CLI entry point
-├── phonemes.py          # 39-phoneme ARPAbet inventory
-├── lexicon.py           # CMUdict loader + G2P fallback
-├── alignment.py         # Grapheme-phoneme alignment for training
-├── mushroom_body.py     # G2P classifier (the brain)
-├── synth.py             # Clean formant synthesis (the voice)
-├── train.py             # G2P training loop
-├── speak.py             # Inference + audio generation
-├── stage2.py            # [LEGACY] Mel trajectory regression
-└── stage2b.py           # [LEGACY] Formant track regression
-```
-
-## Example Outputs
-
-### artifacts/g2p/ (default, recommended)
-
-WAVs generated using MB phoneme predictions + clean formant synthesis:
-
-- Demo words: cat, bat, dog, go, no, hi, bye, yes, me, you (100% accuracy)
-- OOV words: mushroom, connectome, chaos, hatsune, australia, neural, phoneme, cursed, flywire, kenyon (varying accuracy)
-
-### artifacts/lexicon/ (baseline)
-
-Same words using dictionary phonemes — shows what "perfect G2P" sounds like.
-
-### artifacts/stage2/, artifacts/stage2b/ (legacy)
-
-Scratchy/experimental outputs from the trajectory-regression approach. Not recommended.
-
-## Limitations
-
-1. **English spelling is hard**: ~71% test accuracy (irregular orthography)
-2. **No prosody**: No pitch, stress, or duration modeling
-3. **Not real FlyWire**: Simplified MB, not actual connectome weights
-4. **Cursed quality**: This is a toy, not production TTS
-
----
-
-## Two-Swarm Architecture (Recommended)
-
-*"Recognition flies pick; speaking flies speak."*
-
-The clean two-swarm architecture separates G2P classification from audio synthesis:
-
-```
-word → PICKER SWARM → phoneme list → SPEAKER SWARM → WAV
-        (G2P via KC)    [K AE T]      (NO KC!)
-```
-
-**Frozen speak path (`v0.3.0-speakers-lexicon`):** lexicon/dictionary phonemes → Marian-fit speaker flies → WAV. That is the accepted baseline (avocado-style `*_speakers_lexicon` demos). Picker G2P remains experimental/optional. No KC→voice (PR #6 rejected). Branch: `freeze/speakers-lexicon-acceptable`.
-
-### Architecture Principles
-
-1. **PICKER SWARM** (recognition): Uses KC/MB for G2P classification
-   - Input: letter context
-   - Output: phoneme sequence
-   - **Uses KC activity** for sparse expansion and classification
-
-2. **SPEAKER SWARM** (synthesis): **NO KC/MB dependency**
-   - Input: phoneme ID + optional context (prev-phone, position)
-   - Output: audio crumb
-   - Each phoneme has its own speaker fly with trainable parameters
-
-### Why Two Swarms?
-
-PR #6 ("Acoustic Fly Head") tried to generate audio from picker KC features:
-```
-word → picker → KC activity → acoustic fly → audio  ← WRONG (PR #6)
-```
-
-This caused all words to sound similar because KC patterns are similar across words.
-
-The correct architecture:
-```
-word → picker → phonemes → speakers → audio  ← CORRECT (this PR)
-```
-
-Now different words produce different audio because speakers are conditioned
-only on phoneme identity, not on KC activity.
-
-### Quick Start (Two-Swarm)
-
-```bash
-# Train picker flies (G2P classification)
-python -m cursed_tts train-swarm --epochs 10
-
-# Train speaker flies (audio synthesis, no KC)
-python -m cursed_tts train-speaker-flies --iterations 50
-
-# Speak using two-swarm pipeline
-python -m cursed_tts speak-two-swarm mushroom
-
-# Speak a sentence (`,` / `.` insert 300ms / 550ms silence)
-python -m cursed_tts speak-two-swarm-sentence "hello world"
-
-# Generate demo suite
-python -m cursed_tts speak-two-swarm-demo
-```
-
-### Speaker Modes
-
-| Mode | Description |
-|------|-------------|
-| `formant` | Baseline formant synthesis (default) |
-| `trained` | Learned per-phoneme parametric voice |
-| `sample` | Plays carefully sliced Marian crumbs (when available) |
-
-```bash
-# Fit speakers to Marian ILUSTRADO crumbs (this PR)
+# Only if you intentionally re-fit (not needed for v0.3.1)
 python -m cursed_tts train-speaker-flies --mode marian-fit \
   --voicebank /path/to/MARIAN\ ILUSTRADO\ Series --iterations 50
-
-# Formant self-targets if the voicebank is unavailable
-python -m cursed_tts train-speaker-flies --mode formant-bootstrap
+python -m cursed_tts train-speaker-flies --mode formant-bootstrap   # no voicebank
 ```
-
-This PR downloaded MARIAN (ILUSTRADO) from https://downloadmarian.carrd.co/,
-sliced duration-capped crumbs (`data/marian_crumbs/`, attribution in `data/NOTICE`),
-and fitted `model_speaker.npz`. `ZH` had no oto alias and used a formant target.
-
-### Verification
-
-The two-swarm architecture is verified by tests that ensure:
-- SpeakerFly/SpeakerSwarm have **no KC-related parameters**
-- Different phonemes produce different audio
-- Duration caps are respected (60-250ms per crumb)
-
-```bash
-# Run two-swarm tests
-python -m pytest tests/test_two_swarm.py -v
-```
-
-See [TESTING.md](TESTING.md) for full testing documentation.
-
----
-
-## ⚠️ Deprecated: Acoustic Fly Head (PR #6)
-
-**Do not use** the PR #6 "Acoustic Fly Head" approach that passes KC activity to speakers.
-
-| Approach | KC→Speakers? | Result |
-|----------|--------------|--------|
-| PR #6 Acoustic Flies | YES ❌ | Words sound identical |
-| Two-Swarm (this PR) | NO ✓ | Words sound different |
-
-The acoustic fly approach coupled speaker output to picker state instead of phoneme identity,
-causing "cat", "bat", and "me" to produce nearly identical audio.
-
-If you need to reference PR #6, see [PR #6](https://github.com/jtwolfe/flysune-miku/pull/6) 
-for the wrong fork (now deprecated).
-
----
-
-## One Phoneme Per Fly (Picker Swarm)
-
-*"What if each phoneme had its own dedicated fly brain?"*
-
-### The Joke (and the Biology)
-
-In the real fruit fly mushroom body, different **MBON compartments** respond to different learned associations. The standard multi-class MB uses one MBON per phoneme class (39 compartments), with winner-take-all selecting the prediction.
-
-The **one-phoneme-per-fly** experiment takes this to the extreme: instead of one brain with 39 output compartments, we train an **ensemble of 39 specialist flies**. Each specialist answers a simple binary question: *"Is the next phoneme /K/?"* At inference, all 39 flies evaluate the letter context, and we pick the phoneme whose specialist is most confident it's seeing its target.
-
-This is closer to the biological concept of **compartment specialization** — each MBON compartment in the real fly responds preferentially to specific odor-reward associations. Here, each "compartment" (specialist fly) specializes in detecting one phoneme.
-
-### Architecture: Picker Flies + Singer Flies (MoE)
-
-The swarm has two stages: **picker flies** choose the phoneme sequence, then **singer flies** render each phoneme with personalized voices.
-
-```
-    Letter context ("_ca_t__")
-            ↓
-    ┌───────────────────────────────────────┐
-    │   PICKER FLIES (G2P Classification)   │
-    │   Shared PN→KC + per-phoneme MBON     │
-    └───────────────────────────────────────┘
-            ↓ Predicted phoneme sequence
-    ┌─────┬─────┬─────┬─────┬─────┐
-    │ /K/ │ /AE/│ /T/ │ /D/ │ ... │  ← SINGER FLIES
-    │ ♪   │ ♪   │ ♪   │ ♪   │     │  (personalized voices)
-    │F0=119│F0=194│F0=112│F0=113│   │
-    └──┬──┴──┬──┴──┬──┴──┬──┴─────┘
-       │     │     │     │
-       ↓     ↓     ↓     ↓
-    Concatenate audio crumbs → Final WAV
-```
-
-**Picker flies** (specialist classification):
-- Shared input layer: Same PN→KC expansion (efficiency)
-- Private output weights: KC→MBON with 2 outputs (YES/NO)
-- Learning rule: Dopamine-when-wrong (anti-Hebbian)
-
-**Singer flies** (personalized synthesis):
-- Each phoneme has its own "voice" with distinct characteristics
-- F0 (pitch): 100-200 Hz range, spread across phonemes
-- Formant shift: 0.9-1.2x (brighter/darker timbres)
-- Vibrato: Some vowels get subtle pitch modulation
-- Breathiness: Fricatives get more noise, vowels less
-- Duration scaling: Diphthongs longer, stops shorter
-
-### Quick Start (Swarm)
-
-```bash
-# Train a subset of specialists (phonemes needed for demo words)
-python -m cursed_tts train-swarm --phones demo --epochs 8
-
-# Train all 39 specialists (full ARPAbet) with softmax voting
-python -m cursed_tts train-swarm --epochs 10 --vote softmax
-
-# Speak using the fly swarm
-python -m cursed_tts speak mushroom --swarm
-
-# Speak with a specific voting strategy
-python -m cursed_tts speak mushroom --swarm --vote margin
-
-# Generate all swarm demo WAVs
-python -m cursed_tts speak-all --swarm
-
-# Compare swarm vs baseline accuracy
-python -m cursed_tts eval --swarm
-```
-
-### Voting Strategies (Arbitrator)
-
-The swarm uses a configurable **arbitrator** to combine specialist votes:
-
-| Strategy | Flag | Description |
-|----------|------|-------------|
-| **softmax** | `--vote softmax` | Softmax over YES scores (default, most robust) |
-| **margin** | `--vote margin` | Require margin between best/second; fallback to softmax |
-| **argmax** | `--vote argmax` | Raw argmax (original, can thrash when specialists overconfident) |
-
-```bash
-# Train with softmax voting (recommended)
-python -m cursed_tts train-swarm --vote softmax --vote-temp 0.5
-
-# Train with margin voting
-python -m cursed_tts train-swarm --vote margin --vote-margin 0.1
-
-# Override at inference
-python -m cursed_tts speak mushroom --swarm --vote margin
-```
-
-**Why this matters**: Raw argmax voting can degrade as training continues — specialists get overconfident on wrong phonemes. Softmax/margin voting provides more robust ensemble decisions.
-
-### Best Checkpoint & Early Stopping
-
-Training automatically tracks demo_phoneme accuracy and saves the best weights:
-
-```bash
-# Train with early stopping (stop if no improvement for 5 epochs)
-python -m cursed_tts train-swarm --patience 5
-
-# Disable best checkpoint saving
-python -m cursed_tts train-swarm --no-save-best
-```
-
-Output files:
-- `model_swarm.npz` — Final weights (may be degraded on long runs)
-- `model_swarm_best.npz` — Best weights by demo_phoneme accuracy
-
-**Recommendation**: Use `model_swarm_best.npz` for inference after long training runs.
-
-### Confusion Mining / Hard Negatives (Step 4)
-
-Train with attention to confusable phoneme pairs — learn more when wrong on hard pairs:
-
-```bash
-# Train with confusion mining (mine confusions after epoch 2)
-python -m cursed_tts train-swarm --confusion-mine --epochs 6 --patience 3
-
-# With confusion report
-python -m cursed_tts train-swarm --confusion-mine --confusion-report confusion.txt
-
-# Use pre-defined known hard pairs without mining (IY↔EH, AE↔AA, etc.)
-python -m cursed_tts train-swarm --use-known-hard-pairs
-```
-
-**How it works**:
-
-1. **Mining phase** (after epoch N): Build confusion matrix on held-out data to identify frequently confused phoneme pairs (e.g., AA↔AH, IY↔IH, Z↔S)
-2. **Target-only oversampling**: Augment training data by duplicating samples where `target=T` for a confusion `(T→P)` — NOT when target is P (v2 fix to avoid flooding with common phonemes)
-3. **Capped at 15%**: Duplicates don't exceed 15% of corpus to avoid overfitting
-4. **Position encoding**: 8-dim phoneme slot position features help distinguish slots in short words like "me"
-
-**Biology analogy**: Selective attention to errors. When a fly brain repeatedly confuses two similar odors, more learning happens on those specific cases.
-
-**Results** (250-word held-out evaluation):
-
-| Metric | Baseline | +Mining | Delta |
-|--------|----------|---------|-------|
-| Test pair accuracy | 64.9% | 65.8% | **+0.9%** |
-| Held-out phoneme | 65.8% | 66.3% | **+0.5%** |
-| `me` correct? | NO (M EH) | **YES (M IY)** | ✓ |
-
-**Confusion rate improvements**:
-
-| Pair | Baseline | +Mining | Note |
-|------|----------|---------|------|
-| IY→EH | 6.6% | 5.1% | "me" problem fixed |
-| AE→AA | 9.3% | **2.5%** | -6.7% big win! |
-| IY→IH | 10.8% | 7.9% | -2.9% |
-| AE→AH | 22.3% | 19.9% | -2.4% |
-
-**Hard fraction**: 45.1% of samples marked hard (capped at 15% oversample)
-
-### Performance
-
-The swarm is an experiment, not an improvement. Expected results:
-
-| Model | Demo Phoneme Acc | Demo Word Acc | Test Phoneme Acc | Test Word Acc |
-|-------|------------------|---------------|------------------|---------------|
-| Single MB (baseline) | ~100% | ~100% | ~71% | ~24% |
-| Fly Swarm (softmax) | ~80-90% | ~50-70% | ~55-65% | ~10-20% |
-| Fly Swarm (argmax) | ~70-80% | ~40-60% | ~50-60% | ~5-15% |
-
-**Why worse?** The specialists vote independently — they don't see each other's outputs. The single MB has one unified decision boundary across all classes; the swarm has 39 independent binary classifiers that can disagree. This is biologically interesting but mathematically suboptimal.
-
-### Output Examples
-
-Swarm predictions for demo words (demo-subset swarm):
-
-| Word | Reference | Swarm Prediction | Match |
-|------|-----------|------------------|-------|
-| cat | K AE T | K AE T | 100% |
-| dog | D AO G | D AO G | 100% |
-| mushroom | M AH SH R UW M | M AH SH R AH M | 83% |
-| australia | AO S T R EY L Y AH | AO AH S S AH L AH AH | 38% |
-| chaos | K EY AA S | K EH R S | 50% |
-
-### artifacts/swarm/
-
-WAV files generated using swarm predictions for:
-- cat, dog, mushroom, hatsune, australia, kenyon, chaos, connectome
-
-### Why Do This?
-
-1. **Meme science**: It's a cursed TTS project, so why not?
-2. **Biology exploration**: Tests whether compartment specialization can work for classification
-3. **Failure is data**: Understanding why the swarm underperforms reveals the value of unified multi-class decision boundaries
-4. **Educational**: Demonstrates ensemble methods vs single classifiers
-
-### Freeze Tags
-
-- `v0.1.0-g2p-acceptable` / `freeze/g2p-acceptable`: baseline single-MB G2P (don't modify)
-- `v0.2.0-more-fly` / `freeze/more-fly-acceptable`: MORE FLY picker (don't modify)
-- `v0.3.0-speakers-lexicon` / `freeze/speakers-lexicon-acceptable`: Marian-fit speakers + lexicon phones (don't modify)
-
-### Singer Fly Voice Examples
-
-Each phoneme's singer fly has unique voice characteristics:
-
-| Phoneme | F0 (Hz) | Formant Shift | Vibrato | Notes |
-|---------|---------|---------------|---------|-------|
-| K | 119 | 0.97 | none | Lower, darker stop |
-| AE | 194 | 1.12 | 6 Hz | High, bright with vibrato |
-| T | 112 | 0.97 | none | Low, crisp stop |
-| AO | 120 | 1.01 | 5 Hz | Warm with subtle vibrato |
-| M | ~130 | ~1.0 | none | Resonant nasal |
-| S | ~140 | ~1.05 | none | Breathy fricative |
-
-The result is a "choir of flies" effect where different phonemes are literally sung by different voices — musically cursed but biologically poetic.
-
-### Future Ideas (Not Implemented)
-
-- **Hierarchical swarms**: Specialists for phoneme *categories* (vowels, stops, fricatives) that then dispatch to sub-specialists
-- **Shared attention**: Let specialists see top-K votes from other specialists before final decision
-- **UTAU/OpenUTAU voicebank slices**: Replace synthetic formant crumbs with real phoneme audio samples from open voicebanks (see hook in `singer_fly.py`). This would require downloading voicebank files but could provide much higher quality phoneme rendering while keeping the MoE architecture.
-- **CMU Arctic integration**: Use diphone/triphone units from CMU Arctic for more natural concatenative synthesis
-
----
-
-## More Fly: Real Wiring & DAN Teaching
-
-*"Upgrade from mushroom-shaped to mushroom-wired"*
-
-The MORE FLY module (`cursed_tts/more_fly.py`) implements biologically-faithful enhancements.
-
-### Recommended Default: `+A+B_data` (Random Wiring + Cues + Curriculum)
-
-```bash
-# Train with recommended config (now the default)
-python -m cursed_tts train-more-fly --epochs 8
-```
-
-This uses:
-- **Stage A cues**: Previous-phone, focus features, enhanced position encoding
-- **Stage B curriculum**: Hard-word oversampling (IY↔EH, AE↔AA, IY↔UW)
-- **Random wiring**: Simpler and matches or exceeds hemibrain on held-out accuracy
-
-### Stage A: Richer Cues
-
-- **Previous-phone cue**: Teacher-forced during training, autoregressive at decode
-- **Focus features**: Help short words like "me" maintain distinct slot encodings
-- **Position encoding**: Enhanced sinusoidal + discrete slot indicators
-
-### Stage B: Fuller Data
-
-- **Full CMUdict support**: `--words 0` uses all ~117k words
-- **Hard-word curriculum**: Fixed 15% oversample of known hard pairs (IY↔EH, AE↔AA, IY↔UW)
-- **Fixed seeds**: Reproducible splits documented in training
-
-### Stage C: Real Wiring (Experimental)
-
-⚠️ **Experimental**: Real hemibrain wiring does not outperform random wiring on our task.
-Use `+A+B_data` (random) as the recommended default.
-
-**Now with real hemibrain synapse data** extracted from v1.2 compact adjacencies:
-
-- **428 PNs → 1927 KCs** (real traced neurons)
-- **~5.5 PN inputs per KC** (binarized with ≥3 synapse threshold)
-- **Frozen PN→KC**: Only KC→MBON weights are plastic (fly-faithful)
-- Uses n_pn=400 to preserve connectivity structure
-
-```bash
-# Train with real hemibrain wiring (experimental)
-python -m cursed_tts train-more-fly --config +A+B+C_wiring --wiring flywire --epochs 8
-```
-
-**Why random wiring is still better**: The real hemibrain PN→KC connectivity is specialized 
-for olfactory processing, not letter-to-phoneme classification. Random wiring provides more 
-flexibility for our task (95.8% vs 87.5% demo accuracy).
-
-### Stage D: DAN Teaching
-
-**Compartment-local dopamine** following Hige et al. 2015:
-
-- **Only update responsible specialists**: When wrong, depress KC→MBON for correct class, potentiate for wrong class
-- **Per-compartment teaching**: Not whole-brain reward spray
-- **KC→MBON only**: PN→KC weights frozen by default
-
-```bash
-# Train full MORE FLY (all stages)
-python -m cursed_tts train-more-fly --config +A+B+C+D_full --epochs 8
-```
-
-### Ablation Results
-
-| Config | Demo Ph | Demo W | Test Ph | Test W | me | yes | hi | IY→EH | AE→AA |
-|--------|---------|--------|---------|--------|----|----|-----|-------|-------|
-| baseline | 95.8% | 90.0% | 65.0% | 13.2% | M IY | Y EH Z | HH AY | 5.8% | 13.9% |
-| +A_cues | 95.8% | 90.0% | 61.7% | 10.8% | M IY | Y EH Z | HH AY | 5.6% | 4.8% |
-| +A+B_data | 95.8% | 90.0% | 62.8% | 11.2% | M IY | Y EH S | HH AY | 9.3% | 9.4% |
-| +A+B+C_wiring | 95.8% | 90.0% | 61.5% | 9.2% | M IY | Y EH S | HH AY | 6.3% | 16.1% |
-| +A+B+C+D_full | 95.8% | 90.0% | 61.5% | 9.2% | M IY | Y EH S | HH AY | 6.3% | 16.1% |
-
-*Trained on 5000 words, 6-8 epochs, seed=42. Full logs in `artifacts/eval/more_fly/`.*
-
-**Note on Stage B**: In this 5k-word ablation, "Stage B" refers to the **hard-word curriculum** 
-(IY↔EH, AE↔AA, IY↔UW oversampling), not larger vocabulary. Use `--words 0` for full CMUdict.
-
-**Note on hemibrain wiring (experimental)**: The hemibrain expansion geometry requires a 
-different KC→MBON initialization (init_seed=1000) to correctly discriminate IY in short words 
-like "me". This is a temporary workaround until real synapse data is available. Hemibrain 
-wiring does not outperform random+data on held-out accuracy in current ablations, so 
-`+A+B_data` with random wiring is the recommended default.
-
-### CLI Reference
-
-```bash
-# Train MORE FLY with recommended default (+A+B_data, random wiring)
-python -m cursed_tts train-more-fly --epochs 8
-
-# Train with specific configuration
-python -m cursed_tts train-more-fly --config <CONFIG> --wiring <MODE> --epochs N
-
-# Configs: baseline, +A_cues, +A+B_data (default), +A+B+C_wiring, +A+B+C+D_full
-# Wiring modes: random (default), flywire, hemibrain (experimental)
-
-# Example: hemibrain wiring experiment
-python -m cursed_tts train-more-fly --config +A+B+C_wiring --wiring flywire --epochs 8
-
-# Run all ablations
-python -m cursed_tts eval-more-fly --words 5000 --epochs 6
-```
-
-### Unit Tests
-
-```bash
-# Run MORE FLY tests
-python -m pytest tests/test_more_fly.py -v
-
-# Tests verify:
-# - Previous-phone cue changes encoding
-# - Short word slots differ by position features
-# - PN→KC frozen during DAN training
-# - KC→MBON changes on errors
-# - Wiring hash differs when seed changes
-```
-
-### Biology Analogy
-
-```
-Input Features (letter context)
-         ↓
-    PN Layer (~180 "glomeruli")
-         ↓ [sparse random, from connectome]
-    KC Layer (~2000 Kenyon cells, ~10% active)
-         ↓ [plastic, anti-Hebbian]
-    MBON Compartments (YES/NO per phoneme)
-         ↓
-    Winner-take-all → Prediction
-         
-    DAN Teaching (when wrong):
-    - Target compartment: DEPRESS KC→MBON[YES]
-    - Wrong compartment: POTENTIATE KC→MBON[NO]
-```
-
----
 
 ## References
 
-- [FlyWire Hiragana OCR Demo](https://hae.satoru.net/) — The inspiration
-- [FlyWire](https://flywire.ai/) — Complete fruit fly brain connectome
-- [Hemibrain Connectome](https://neuprint.janelia.org/) — Janelia FlyEM dataset
-- [CMUdict](http://www.speech.cs.cmu.edu/cgi-bin/cmudict) — Pronunciation dictionary
-- [Scheffer et al. 2020](https://doi.org/10.7554/eLife.57443) — Hemibrain connectome paper
-- [Zheng et al. 2020](https://doi.org/10.1016/j.cub.2022.06.012) — PN-KC structured sampling
-- [Hige et al. 2015](https://doi.org/10.1016/j.neuron.2015.04.027) — Dopamine plasticity in MB
-- [Handler et al. 2019](https://doi.org/10.1038/s41593-019-0435-7) — Timing-dependent plasticity
+- [FlyWire Hiragana OCR Demo](https://hae.satoru.net/)
+- [FlyWire](https://flywire.ai/)
+- [Hemibrain](https://neuprint.janelia.org/) — Scheffer et al. 2020
+- [CMUdict](http://www.speech.cs.cmu.edu/cgi-bin/cmudict)
+- [Hige et al. 2015](https://doi.org/10.1016/j.neuron.2015.04.027) — dopamine plasticity in MB
+- [Handler et al. 2019](https://doi.org/10.1038/s41593-019-0435-7)
 
 ## License
 
-MIT
+MIT. Marian crumbs: see `data/NOTICE` (Kanabun / MARIAN ILUSTRADO). Hemibrain extracts: CC-BY, Scheffer et al. 2020.
