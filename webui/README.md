@@ -24,6 +24,8 @@ The interactive lab (slow-mo theatre, choir, KC grid, Listen / WAV) lives in the
 | `public/models/speaker.json` | Marian-fit speaker params |
 | `public/models/cmudict.bin` | Packed CMUdict for slot counts |
 | `public/models/golden.json` | Traces for `cat` / `bat` / `me` / `yes` / `dog` |
+| `public/og.jpg` | 1200×630 link preview (FLYSUNE MIKU cover)
+| `public/x-banner.jpg` | 1200×264 X feed banner |
 
 The picker here is the checked-in hemibrain wiring (`nPn=400`, `nKc=2000`). Freeze docs still recommend random `+A+B_data` for *training*; this lab does not retrain.
 
