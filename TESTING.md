@@ -1,52 +1,16 @@
-# Testing: Two-Swarm Architecture
+# Testing
 
-**Recognition flies pick; speaking flies speak.**
+**Recognition flies pick; speaking flies speak.** Speakers never see picker KC.
 
 ```
-word → PICKER SWARM → phoneme list → SPEAKER SWARM → WAV
-        (G2P via KC)    [K AE T]      (no KC)
+word → PICKER (MORE FLY G2P) → phone ids → SPEAKER FLIES (Marian-fit) → WAV
 ```
 
-Picker flies classify letter context into a phoneme sequence. Speaker flies
-then render each phoneme as a short audio crumb. Speakers are conditioned
-**only on phoneme id** (plus optional prev-phone / position). They never see
-picker Kenyon-cell activity.
+**This freeze (`v0.3.1-punct-pauses`, `freeze/punct-pauses-acceptable`):** fly-only speak path. Listen to `artifacts/eval/two_swarm/avocado/`. Punctuation is silence at concat, not phones.
 
-**Frozen demo/speak path:** lexicon phones → Marian-fit speakers → WAV
-(`v0.3.0-speakers-lexicon`, `freeze/speakers-lexicon-acceptable`). Point at
-avocado-style `*_speakers_lexicon` demos. Picker G2P phones are optional /
-experimental, not the frozen deliverable. No KC→voice.
+**Prior freeze (`v0.3.0-speakers-lexicon`):** lexicon phones → the same Marian speakers. Still available; not the avocado reference.
 
-## How speakers were trained (this PR)
-
-Speakers were trained with **`train-speaker-flies --mode marian-fit`**.
-
-1. Downloaded **MARIAN (ILUSTRADO)** from https://downloadmarian.carrd.co/
-   (MediaFire: `MARIAN_ILUSTRADO_Series.zip`).
-2. Parsed `ARPAsing/oto.ini` and resolved aliases the same way as PR #5/#6:
-   standalone (`aa`, `k`) first, then `- C` / `C -`, then diphone `C V` / `V C`.
-   Trailing digits (`iy1`) are stripped for matching.
-3. Sliced **duration-capped** crumbs (80–250 ms; vowels ~200 ms, consonants
-   ~140 ms). Full diphone oto windows are **not** concatenated — that is the
-   path that failed in PR #5.
-4. Fit a small per-phone parametric voice (F0 / formant shifts / noise /
-   duration) to those crumbs. Phones with no usable alias fall back to
-   formant self-targets.
-5. Saved `model_speaker.npz`. Attribution: `data/NOTICE`.
-
-If Marian cannot be downloaded, the same command with
-`--mode formant-bootstrap` trains against the built-in formant synth instead.
-This PR **did** obtain Marian and used `marian-fit`.
-
-```bash
-# Re-extract crumbs + fit (needs an unpacked ILUSTRADO folder)
-python3 -m cursed_tts train-speaker-flies --mode marian-fit \
-  --voicebank /path/to/MARIAN\ ILUSTRADO\ Series \
-  --iterations 50 --output model_speaker.npz
-
-# Formant-only fallback (no voicebank)
-python3 -m cursed_tts train-speaker-flies --mode formant-bootstrap --iterations 50
-```
+Rejected: [PR #6](https://github.com/jtwolfe/flysune-miku/pull/6) KC→voice. Stage 2 / 2b trajectory→audio. Do not ship those.
 
 ## Tests
 
@@ -59,53 +23,84 @@ python3 -m pytest tests/test_two_swarm.py -v
 | `TestSpeakerNoKCDependency` | `SpeakerFly` / `SpeakerSwarm` have no KC/MB parameters |
 | `TestSpeakerDifferentPhonemes` | `cat` ≠ `bat` ≠ `dog`; consonants do not collapse |
 | `TestSpeakerDurationCaps` | crumbs stay in the 60–250 ms band |
-| `TestMarianAliasAndCaps` | standalone/`- C` alias order; oto windows hard-capped |
+| `TestMarianAliasAndCaps` | standalone / `- C` alias order; oto windows hard-capped |
 | `TestTrainSpeaker` | formant-bootstrap smoke + sane param ranges |
 | `TestTwoSwarmPipeline` | picker → phone list → speakers → WAV |
+| `TestPunctuationPauses` | tokenize + duration vs glued concat (`,` 300 ms, `.` 550 ms) |
 
-## Demo suite
-
-```bash
-python3 -m cursed_tts speak-two-swarm-demo \
-  --picker-model model_more_fly_best.npz --picker-type more_fly \
-  --speaker-model model_speaker.npz \
-  --output-dir artifacts/eval/two_swarm
-```
-
-| Path | Contents |
-|------|----------|
-| `artifacts/eval/two_swarm/words/` | cat/bat/dog/me/yes/… plus longer demo words |
-| `artifacts/eval/two_swarm/sentences/` | four short sentences |
-| `artifacts/eval/two_swarm/paragraph_four_sentences.wav` | 4-sentence paragraph |
-| `artifacts/eval/two_swarm/*_speakers.wav` / `*_formant.wav` | A/B vs formant-only speakers |
-
-Speak one word or a sentence:
-
-```bash
-python3 -m cursed_tts speak-two-swarm cat --picker-type more_fly \
-  --picker-model model_more_fly_best.npz
-python3 -m cursed_tts speak-two-swarm-sentence "hello world" \
-  --picker-type more_fly --picker-model model_more_fly_best.npz
-```
-
-`--formant-baseline` keeps the same picker phones but renders with the
-legacy formant crumbs (A/B).
-
-Sentence/paragraph concat (`speak-two-swarm-sentence`, `speak_sequence`)
-keeps 150ms between words and inserts **300ms** after `,` and **550ms**
-after `.`. Punctuation is not sent to picker or speakers.
-
-Fly-only avocado re-render (picker G2P → Marian speakers):
-`artifacts/eval/two_swarm/avocado/`.
-
-## Architecture check
+Architecture assert:
 
 ```python
 from cursed_tts.speaker_fly import verify_no_kc_dependency
 assert verify_no_kc_dependency()
 ```
 
-Speaker input: phoneme id + optional prev-phone / position.
-Speaker output: WAV crumb.
-**Wrong fork:** [PR #6](https://github.com/jtwolfe/flysune-miku/pull/6)
-passed picker KC into an acoustic head; do not ship that as default.
+Speaker input: phoneme id + optional prev-phone / position. Speaker output: WAV crumb.
+
+## Demos (no retraining)
+
+Checked-in models: `model_more_fly_best.npz` (picker), `model_speaker.npz` (speakers).
+
+```bash
+# Word
+python3 -m cursed_tts speak-two-swarm cat --picker-type more_fly \
+  --picker-model model_more_fly_best.npz --speaker-model model_speaker.npz
+
+# Sentence / paragraph (pauses: 150 ms word, 300 ms comma, 550 ms period)
+python3 -m cursed_tts speak-two-swarm-sentence \
+  "Avocados grow on trees. The trees are tall, and the fruit is green." \
+  --picker-type more_fly --picker-model model_more_fly_best.npz \
+  --speaker-model model_speaker.npz
+
+# Suite
+python3 -m cursed_tts speak-two-swarm-demo \
+  --picker-model model_more_fly_best.npz --picker-type more_fly \
+  --speaker-model model_speaker.npz \
+  --output-dir artifacts/eval/two_swarm
+```
+
+`--formant-baseline` = same picker phones, old formant crumbs (A/B only).
+
+| Path | Contents |
+|------|----------|
+| `artifacts/eval/two_swarm/avocado/` | **Listen reference** — fly-only avocado paragraph with pauses |
+| `artifacts/eval/two_swarm/words/` | cat/bat/dog/me/yes/… |
+| `artifacts/eval/two_swarm/sentences/` | short sentences |
+| `artifacts/eval/two_swarm/paragraph_four_sentences.wav` | 4-sentence paragraph |
+| `artifacts/eval/two_swarm/*_speakers.wav` / `*_formant.wav` | A/B vs formant-only |
+
+Lexicon hybrid (CMUdict/G2P phones → Marian speakers): `cursed_tts.train_speaker.generate_speaker_demo()` with `picker_swarm=None`. Old formant lexicon: `python -m cursed_tts speak <word> --lexicon`.
+
+## Speakers (already fitted)
+
+`train-speaker-flies --mode marian-fit` against duration-capped **MARIAN (ILUSTRADO)** crumbs (`data/NOTICE`). `ZH` formant-fallback. Do not re-fit for this freeze.
+
+```bash
+# Re-fit only if you mean to (needs unpacked ILUSTRADO)
+python3 -m cursed_tts train-speaker-flies --mode marian-fit \
+  --voicebank /path/to/MARIAN\ ILUSTRADO\ Series \
+  --iterations 50 --output model_speaker.npz
+
+python3 -m cursed_tts train-speaker-flies --mode formant-bootstrap --iterations 50
+```
+
+## Freeze tags
+
+| Tag | Branch |
+|-----|--------|
+| `v0.3.1-punct-pauses` | `freeze/punct-pauses-acceptable` |
+| `v0.3.0-speakers-lexicon` | `freeze/speakers-lexicon-acceptable` |
+| `v0.2.0-more-fly` | `freeze/more-fly-acceptable` |
+| `v0.1.0-g2p-acceptable` | `freeze/g2p-acceptable` |
+
+MORE FLY picker ablations (historical): `artifacts/eval/more_fly/`.
+
+## Security / PII scan (v0.3.1 tip)
+
+Working tree + `git grep` over `HEAD` history blobs for high-signal secrets (`AKIA…`, `sk_live_`, `ghp_`, `github_pat_`, `xox[baprs]-`, PEM/SSH private keys, `.env`, `aws_secret`). No hits. No `.env`, `*.pem`, or credential files. `.gitignore` now ignores `.env` / `*.pem` / `id_rsa*`.
+
+**PII:** no emails, phone numbers, home paths, or street addresses in tracked files. Public attributions left as-is (MARIAN / Kanabun, FlyWire, hemibrain authors, Hatsune Miku mascot disclaimer). Commit metadata still has the repo owner's git author email (public Git history — not rewritten).
+
+**Binaries:** checked-in `*.npz` models (largest `model.npz` ~12 MB) and demo WAVs, all expected. No surprise disk images or voicebank dumps.
+
+**Dependencies:** no npm tree. Declared Python deps (`numpy`, `soundfile`, `cmudict`, `g2p_en`) had no OSV hits on current/latest versions checked. `g2p_en` pulls **NLTK** for the optional tagger download; NLTK's corpus/downloader APIs have many 2026 advisories. This repo is a local CLI toy and does not expose those APIs. VM `pip-audit` also flagged image-level `pip`/`setuptools`/`urllib3`/etc. — not project requirements. No dependency bumps in this freeze.

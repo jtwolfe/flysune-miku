@@ -1,5 +1,7 @@
 # MORE FLY Demo Proofs
 
+Picker-only G2P audio proofs (historical). **v0.3.1 listen reference:** `artifacts/eval/two_swarm/avocado/`.
+
 Audio proof files demonstrating the MORE FLY G2P system.
 
 ## Directory Structure
@@ -39,7 +41,7 @@ proofs/
 | me | M IY ✓ | M IY ✓ | M IY |
 | you | Y UW ✓ | Y UW ✓ | Y UW |
 
-**Key observation**: Both wiring modes correctly predict `me = M IY` after the fixes applied in this PR.
+**Key observation**: Both wiring modes correctly predict `me = M IY` after the hemibrain `me`/IY fixes. These proofs are picker-only; the v0.3.1 listen reference is `artifacts/eval/two_swarm/avocado/`.
 
 ## OOV (Out-of-Vocabulary) Words
 

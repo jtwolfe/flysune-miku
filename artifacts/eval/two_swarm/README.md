@@ -1,20 +1,28 @@
 # Two-swarm eval demos
 
-Pipeline: `word → picker (MORE FLY G2P) → phone list → speaker flies → WAV`
+**This freeze (`v0.3.1-punct-pauses`):** picker G2P → Marian speaker flies. Listen to `avocado/`.
 
-Speakers were trained with **marian-fit** (38/39 phones from MARIAN ILUSTRADO crumbs;
-`ZH` formant-bootstrap). See `data/NOTICE` and repo `TESTING.md`.
+```
+word → picker (MORE FLY) → phone ids → speakers → WAV
+```
+
+Speakers: **marian-fit** (38/39 phones from MARIAN ILUSTRADO crumbs; `ZH` formant-bootstrap). Attribution: `data/NOTICE`. No KC→voice.
+
+Sentence/paragraph concat inserts silence after punctuation: **150 ms** between words, **300 ms** after `,`, **550 ms** after `.`. Punctuation is never sent to picker or speakers.
 
 | Path | What |
 |------|------|
+| `avocado/` | **Listen reference** — fly-only avocado paragraph with pauses |
 | `words/` | 22 words including cat/bat/dog/me so consonants can be A/B'd |
 | `sentences/` | 4 short sentences |
-| `paragraph_four_sentences.wav` | 4-sentence paragraph (~9s) |
+| `paragraph_four_sentences.wav` | 4-sentence paragraph |
 | `comparison/` | same phones rendered by trained speakers vs formant-only |
-| `avocado/` | fly-only avocado re-render (picker G2P → Marian speakers) with `,` / `.` pauses |
 
-Sentence/paragraph concat (`speak_sequence` / `speak-two-swarm-sentence`) inserts
-silence after punctuation: **150ms** between words, **300ms** after `,`,
-**550ms** after `.`. Speakers still receive phone ids only.
+Lexicon phones → the same speakers is the older `v0.3.0-speakers-lexicon` hybrid, not this folder's avocado render.
 
-Stale single-file WAVs at this directory root (if any) are leftovers from the first pass.
+```bash
+python3 -m cursed_tts speak-two-swarm-demo \
+  --picker-model model_more_fly_best.npz --picker-type more_fly \
+  --speaker-model model_speaker.npz \
+  --output-dir artifacts/eval/two_swarm
+```
