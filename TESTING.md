@@ -91,6 +91,13 @@ python3 -m cursed_tts speak-two-swarm-sentence "hello world" \
 `--formant-baseline` keeps the same picker phones but renders with the
 legacy formant crumbs (A/B).
 
+Sentence/paragraph concat (`speak-two-swarm-sentence`, `speak_sequence`)
+keeps 150ms between words and inserts **300ms** after `,` and **550ms**
+after `.`. Punctuation is not sent to picker or speakers.
+
+Fly-only avocado re-render (picker G2P → Marian speakers):
+`artifacts/eval/two_swarm/avocado/`.
+
 ## Architecture check
 
 ```python

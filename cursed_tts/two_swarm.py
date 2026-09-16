@@ -31,6 +31,57 @@ from .phonemes import PHONEME_LIST, strip_stress
 from .lexicon import get_phonemes, is_known_word
 from .synth import save_wav, SAMPLE_RATE, synthesize_all_phonemes, concatenate_phonemes
 
+# Sentence/paragraph pauses (seconds). Speakers still see phone ids only;
+# silence is inserted at concat time after `,` / `.` (not spoken as phones).
+WORD_GAP_S = 0.15
+COMMA_PAUSE_S = 0.30
+PERIOD_PAUSE_S = 0.55
+_PUNCT_PAUSES = {',': COMMA_PAUSE_S, '.': PERIOD_PAUSE_S}
+
+# Fly-only avocado re-render (picker G2P → Marian speakers). Same growth
+# paragraph used when prior avocado A/B paths are missing from the tree.
+AVOCADO_GROW_PARAGRAPH = (
+    "Avocados grow on trees. The trees are tall, and the fruit is green. "
+    "When avocados are ripe, people pick them. The fruit has a large seed inside."
+)
+
+
+def silence_samples(seconds: float) -> np.ndarray:
+    """Zero audio of the given duration at the synth sample rate."""
+    n = max(0, int(round(float(seconds) * SAMPLE_RATE)))
+    return np.zeros(n, dtype=np.float32)
+
+
+def tokenize_spoken_text(text: str) -> List[Tuple[str, float]]:
+    """
+    Split sentence/paragraph text into (word, following_pause_s) pairs.
+
+    Words are alphabetic (same stripping as the old concat path). Trailing
+    `,` or `.` on a token replace the default inter-word gap with a longer
+    pause. Bare punctuation attaches to the previous word. A trailing word
+    without punctuation gets no extra silence (legacy behavior); a trailing
+    comma/period still gets its pause so sentence ends are audible.
+    """
+    items: List[List] = []
+    for raw in text.strip().split():
+        pause = WORD_GAP_S
+        core = raw
+        while core and core[-1] in _PUNCT_PAUSES:
+            pause = max(pause, _PUNCT_PAUSES[core[-1]])
+            core = core[:-1]
+        while core and core[0] in _PUNCT_PAUSES:
+            pause = max(pause, _PUNCT_PAUSES[core[0]])
+            core = core[1:]
+        word = ''.join(c for c in core if c.isalpha())
+        if not word:
+            if items and pause > items[-1][1]:
+                items[-1][1] = pause
+            continue
+        items.append([word, pause])
+    if items and items[-1][1] == WORD_GAP_S:
+        items[-1][1] = 0.0
+    return [(w, float(p)) for w, p in items]
+
 
 class TwoSwarmSpeaker:
     """
@@ -201,8 +252,12 @@ class TwoSwarmSpeaker:
         """
         Speak a sequence of words (sentence/phrase).
         
+        Concatenates word WAVs with 150ms gaps. Tokens ending in `,` or `.`
+        get a longer silence instead (300ms comma, 550ms period). Punctuation
+        is never sent to the picker or speakers.
+        
         Args:
-            text: Space-separated words
+            text: Space-separated words (punctuation `,` / `.` optional)
             output_path: Optional path to save WAV
             verbose: Print details
         
@@ -210,7 +265,7 @@ class TwoSwarmSpeaker:
             audio: Concatenated audio
             all_phonemes: List of phoneme sequences per word
         """
-        words = text.lower().strip().split()
+        tokens = tokenize_spoken_text(text)
         
         if verbose:
             print(f"\nSpeaking: '{text}' [TWO-SWARM]")
@@ -218,28 +273,23 @@ class TwoSwarmSpeaker:
         all_audio = []
         all_phonemes = []
         
-        # Inter-word silence
-        silence_samples = int(0.15 * SAMPLE_RATE)  # 150ms between words
-        silence = np.zeros(silence_samples, dtype=np.float32)
-        
-        for i, word in enumerate(words):
-            # Clean word
-            word_clean = ''.join(c for c in word if c.isalpha())
-            if not word_clean:
-                continue
-            
-            # Speak word
+        for i, (word_clean, pause_s) in enumerate(tokens):
+            # Speak word (picker → phone ids → speakers; no punctuation)
             audio, picker_ph, ref_ph, _ = self.speak(word_clean, verbose=False)
             
             all_audio.append(audio)
             all_phonemes.append(picker_ph)
             
-            # Add silence between words
-            if i < len(words) - 1:
-                all_audio.append(silence)
+            if pause_s > 0:
+                all_audio.append(silence_samples(pause_s))
             
             if verbose:
-                print(f"  {word_clean}: {' '.join(picker_ph)}")
+                extra = ""
+                if pause_s >= PERIOD_PAUSE_S:
+                    extra = f"  [period pause {pause_s*1000:.0f}ms]"
+                elif pause_s >= COMMA_PAUSE_S:
+                    extra = f"  [comma pause {pause_s*1000:.0f}ms]"
+                print(f"  {word_clean}: {' '.join(picker_ph)}{extra}")
         
         # Concatenate
         if all_audio:
