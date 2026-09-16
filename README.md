@@ -58,6 +58,19 @@ Older wrong objectives (Stage 2 mel + Griffin-Lim, Stage 2b formant-track regres
 
 Word / sentence suites: [`artifacts/eval/two_swarm/`](artifacts/eval/two_swarm/).
 
+## WebUI
+
+In-browser two-swarm lab (JS port of this freeze): [`webui/`](webui/).
+
+Type a sentence, watch recognition flies pick each phoneme (letter window → Kenyon expansion → 39-fly choir), then hear Marian speaker flies render crumbs. Slow-mo, skip, Listen, and WAV export are included.
+
+- Slot count is CMUdict / simple G2P. The flies do **not** choose how many phones a word has.
+- Speakers never see Kenyon cells.
+- Punctuation is silence (150 / 300 / 550 ms).
+- This port uses the checked-in hemibrain picker weights. `dog` is `D OW G` vs CMUdict `D AO G` — a real picker miss, shown in the honesty strip.
+
+See [`webui/README.md`](webui/README.md).
+
 ## Quick start
 
 ```bash
