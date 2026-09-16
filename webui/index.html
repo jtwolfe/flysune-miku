@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flysune Miku — two-swarm lab</title>
+    <meta
+      name="description"
+      content="Watch recognition flies pick phonemes and speaking flies construct sound."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <p class="kicker">Cursed TTS · v0.3.1</p>
+          <h1>Flysune Miku</h1>
+          <p class="lede">
+            Recognition flies pick phonemes. Speaking flies speak them. Speakers never see Kenyon
+            cells.
+          </p>
+        </div>
+        <img
+          class="mascot"
+          src="/assets/flysune-miku.jpg"
+          alt="Flysune Miku project mascot"
+        />
+      </header>
+
+      <div class="layout">
+        <aside class="panel-col">
+          <label class="label" for="utterance">Utterance</label>
+          <textarea id="utterance" rows="5" spellcheck="false">cat bat dog</textarea>
+          <div class="row">
+            <button type="button" class="btn primary" id="speak">Speak</button>
+            <button type="button" class="btn" id="listen" disabled>Listen</button>
+            <button type="button" class="btn ghost" id="pause" disabled>Pause</button>
+            <button type="button" class="btn ghost" id="skip" disabled>Skip</button>
+            <a class="btn" id="download" hidden>WAV</a>
+          </div>
+          <div class="row">
+            <button type="button" class="btn sm" data-preset="cat bat dog">cat bat dog</button>
+            <button type="button" class="btn sm" data-preset="Hi me">Hi me</button>
+            <button
+              type="button"
+              class="btn sm"
+              data-preset="Avocados grow on trees. The trees are tall, and the fruit is green. When avocados are ripe, people pick them. The fruit has a large seed inside."
+            >
+              Avocado paragraph
+            </button>
+          </div>
+          <div class="card row-between">
+            <span>Slow-mo</span>
+            <div class="speeds" id="speeds">
+              <button type="button" data-speed="0.25">0.25×</button>
+              <button type="button" data-speed="0.5">0.5×</button>
+              <button type="button" data-speed="1" class="on">1×</button>
+              <button type="button" data-speed="2">2×</button>
+              <button type="button" data-speed="4">4×</button>
+            </div>
+          </div>
+          <label class="card row-between">
+            <span>Audition crumbs</span>
+            <input type="checkbox" id="audition" checked />
+          </label>
+          <div class="card honesty">
+            <h3>Honesty strip</h3>
+            <p>Slot count <span class="chip">CMUdict / simple G2P</span></p>
+            <p>Picker vs reference <span class="chip" id="match">—</span></p>
+            <p>Speakers see <span class="chip kc">phoneme id only</span></p>
+          </div>
+          <p class="status" id="status"></p>
+        </aside>
+
+        <section class="viz">
+          <ol class="stages" id="stages">
+            <li data-stage="context"><small>01</small><b>Window</b><span>7-letter context</span></li>
+            <li data-stage="kc"><small>02</small><b>Kenyon</b><span>sparse expansion</span></li>
+            <li data-stage="vote"><small>03</small><b>Choir</b><span>39 YES/NO flies</span></li>
+            <li data-stage="speak"><small>04</small><b>Speak</b><span>phoneme id only</span></li>
+          </ol>
+          <div class="timeline" id="timeline">
+            Type a sentence and press Speak. The picker fills each CMUdict slot; speaker flies
+            render crumbs.
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Sentence waveform</h3>
+              <span id="wav-meta">—</span>
+            </div>
+            <div class="wave-wrap">
+              <canvas id="wave" width="640" height="96"></canvas>
+              <div class="playhead" id="playhead"></div>
+            </div>
+          </div>
+          <div class="card" id="letter-card">
+            <div class="card-head">
+              <h3>Letter context</h3>
+              <span id="letter-meta"></span>
+            </div>
+            <div class="letters" id="letters">
+              <p class="muted">The 7-character window appears when a slot is live.</p>
+            </div>
+            <p class="hint" id="prev-phone"></p>
+          </div>
+          <div class="split">
+            <div class="card">
+              <div class="card-head">
+                <h3>Kenyon cells</h3>
+                <span id="kc-meta">—</span>
+              </div>
+              <canvas id="kc" width="280" height="280"></canvas>
+              <p class="hint">
+                Sparse expansion. About 10% fire. Shared across all 39 specialists — speakers never
+                see this.
+              </p>
+            </div>
+            <div class="card choir">
+              <div class="card-head">
+                <h3>Picker swarm</h3>
+                <span>39 flies · softmax</span>
+              </div>
+              <ul id="votes"></ul>
+              <p class="hint" id="vote-hint">Waiting for a slot</p>
+            </div>
+          </div>
+          <div class="card" id="speaker-card">
+            <div class="card-head">
+              <div>
+                <h3>Speaker fly</h3>
+                <p id="speaker-title" class="mono">—</p>
+                <p class="hint" id="speaker-desc">
+                  After the choir votes, one speaker fly renders a 60–250 ms crumb from F0 /
+                  formants / noise.
+                </p>
+              </div>
+              <button type="button" class="btn sm" id="crumb" disabled>Crumb</button>
+            </div>
+            <dl class="params" id="params"></dl>
+          </div>
+        </section>
+      </div>
+
+      <footer>
+        Project mascot only. Not affiliated with Crypton Future Media. Marian crumbs: Kanabun /
+        MARIAN ILUSTRADO. Hemibrain: Scheffer et al. 2020, CC-BY. Architecture: picker G2P → phoneme
+        ids → speakers.
+      </footer>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

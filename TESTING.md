@@ -59,6 +59,16 @@ python3 -m cursed_tts speak-two-swarm-demo \
   --output-dir artifacts/eval/two_swarm
 ```
 
+### Lab WebUI
+
+```bash
+python3 -m cursed_tts webui
+# http://127.0.0.1:8765
+python3 -m pytest tests/test_webui_trace.py -v
+```
+
+`webui/` is a static lab. `POST /api/speak` returns the freeze trace (picker votes + KC indices + speaker params + WAV). No retraining.
+
 `--formant-baseline` = same picker phones, old formant crumbs (A/B only).
 
 | Path | Contents |

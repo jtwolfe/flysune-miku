@@ -17,6 +17,7 @@ Usage:
     python -m cursed_tts speak-all [--lexicon] [--swarm]
     python -m cursed_tts eval [--swarm]
     python -m cursed_tts info
+    python -m cursed_tts webui [--host HOST] [--port PORT]
 
 Legacy (experimental, not recommended):
     python -m cursed_tts train-stage2 / train-stage2b
@@ -613,6 +614,18 @@ def cmd_speak_two_swarm_demo(args):
     print(f"\nTwo-swarm demos saved to: {output_dir}")
 
 
+def cmd_webui(args):
+    """Serve the two-swarm lab WebUI (freeze inference, no retraining)."""
+    from .webui_server import serve
+
+    serve(
+        host=args.host,
+        port=args.port,
+        picker_path=args.picker_model,
+        speaker_path=args.speaker_model,
+    )
+
+
 # Legacy training commands
 def cmd_train_stage2(args):
     """[LEGACY] Train Stage 2 (mel spectrogram regression)."""
@@ -909,6 +922,19 @@ Examples:
     speak_ts_demo_parser.add_argument('--picker-type', type=str, default='swarm',
                                        choices=['swarm', 'more_fly'])
     speak_ts_demo_parser.add_argument('--formant-baseline', action='store_true')
+
+    webui_parser = subparsers.add_parser(
+        'webui',
+        help='Serve the two-swarm lab WebUI (picker G2P → speakers, freeze inference)',
+    )
+    webui_parser.add_argument('--host', type=str, default='127.0.0.1',
+                              help='Bind host (default: 127.0.0.1)')
+    webui_parser.add_argument('--port', type=int, default=8765,
+                              help='Bind port (default: 8765)')
+    webui_parser.add_argument('--picker-model', type=str, default='model_more_fly_best.npz',
+                              help='Picker MORE FLY model (default: model_more_fly_best.npz)')
+    webui_parser.add_argument('--speaker-model', type=str, default='model_speaker.npz',
+                              help='Speaker swarm model (default: model_speaker.npz)')
     
     args = parser.parse_args()
     
@@ -932,6 +958,7 @@ Examples:
         'speak-two-swarm': cmd_speak_two_swarm,
         'speak-two-swarm-sentence': cmd_speak_two_swarm_sentence,
         'speak-two-swarm-demo': cmd_speak_two_swarm_demo,
+        'webui': cmd_webui,
     }
     
     commands[args.command](args)

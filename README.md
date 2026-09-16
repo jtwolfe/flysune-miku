@@ -79,6 +79,17 @@ python -m cursed_tts speak-two-swarm-demo \
   --speaker-model model_speaker.npz
 ```
 
+### Lab WebUI (this freeze)
+
+A local lab that speaks, slow-mo reveals the picker (letter window → Kenyon expansion → 39-fly choir), then the speaker fly, then plays the WAV.
+
+```bash
+python -m cursed_tts webui
+# open http://127.0.0.1:8765
+```
+
+Uses checked-in `model_more_fly_best.npz` + `model_speaker.npz`. Speakers never see KC. Slot count still comes from CMUdict / simple G2P (the picker does not choose how many phones).
+
 `--formant-baseline` keeps the same picker phones but renders with the old formant crumbs (A/B only).
 
 **Lexicon hybrid** (phones from CMUdict/G2P, same Marian speakers — `v0.3.0` path): `generate_speaker_demo()` without a picker, or the old `speak --lexicon` formant baseline. Not the avocado listen reference.
